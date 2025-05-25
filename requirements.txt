@@ -1,0 +1,4 @@
+cinemagoer
+requests
+sqlalchemy
+pandas
