@@ -1,0 +1,422 @@
+.holographic-gallery-container {
+  width: 100%;
+  position: relative;
+  padding: 2rem 0;
+}
+
+.holographic-gallery {
+  display: flex;
+  gap: 2rem;
+  overflow-x: auto;
+  padding: 2rem 0;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.holographic-gallery::-webkit-scrollbar {
+  display: none;
+}
+
+.holographic-card {
+  min-width: 320px;
+  height: 600px;
+  position: relative;
+  background: linear-gradient(145deg, #1a1a1a, #0a0a0a);
+  border: 1px solid #333;
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-style: preserve-3d;
+  cursor: pointer;
+  user-select: none;
+}
+
+.holographic-card:hover {
+  transform: translateY(-8px) rotateX(5deg) rotateY(5deg);
+  border-color: #01ffe9;
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(1, 255, 233, 0.1),
+    0 0 20px rgba(1, 255, 233, 0.2);
+}
+
+.holographic-card.active {
+  border-color: #01ffe9;
+  box-shadow: 
+    0 25px 50px rgba(0, 0, 0, 0.5),
+    0 0 0 2px rgba(1, 255, 233, 0.2),
+    0 0 30px rgba(1, 255, 233, 0.3);
+}
+
+/* Holographic Effects */
+.card-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, transparent 30%, rgba(1, 255, 233, 0.1) 50%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.holographic-card:hover .card-glow {
+  opacity: 1;
+  animation: glow-sweep 2s ease-in-out infinite;
+}
+
+.card-reflection {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, transparent 0%, rgba(255, 255, 255, 0.05) 50%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.holographic-card:hover .card-reflection {
+  opacity: 1;
+}
+
+@keyframes glow-sweep {
+  0%, 100% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+}
+
+.card-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 1;
+}
+
+/* Movie Poster */
+.movie-poster {
+  position: relative;
+  height: 400px;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+
+.movie-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.holographic-card:hover .movie-poster img {
+  transform: scale(1.05);
+}
+
+.poster-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.3) 50%, rgba(0, 0, 0, 0.7) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.holographic-card:hover .poster-overlay {
+  opacity: 1;
+}
+
+.ai-confidence {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(10px);
+}
+.ai-confidence--high {
+  background: rgba(0, 0, 0, 0.85);
+  color: #5eead4;
+  border: 1px solid rgba(94, 234, 212, 0.4);
+}
+.ai-confidence--medium {
+  background: rgba(0, 0, 0, 0.85);
+  color: #fcd34d;
+  border: 1px solid rgba(252, 211, 77, 0.4);
+}
+.ai-confidence--low {
+  background: rgba(0, 0, 0, 0.85);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+/* Movie Info */
+.movie-info {
+  padding: 1.5rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.movie-title {
+  font-size: 1.5rem;
+  font-weight: 300;
+  color: #ffffff;
+  margin: 0 0 0.5rem 0;
+  line-height: 1.2;
+  letter-spacing: 0.5px;
+}
+
+.movie-title.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.movie-meta {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  color: #9ca3af;
+}
+
+.movie-year {
+  color: #01ffe9;
+  font-weight: 500;
+}
+
+.movie-genre {
+  color: #9ca3af;
+}
+
+.movie-rating {
+  color: #fcff6c;
+  font-weight: 500;
+}
+
+.movie-director {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0.5rem 0;
+  font-style: italic;
+}
+
+.ai-reason {
+  font-size: 0.75rem;
+  color: #01ffe9;
+  line-height: 1.4;
+  margin: 0;
+  opacity: 0.8;
+}
+
+/* Interactive Buttons */
+.interactive-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  padding: 1rem 1.5rem;
+  opacity: 1; /* Always visible for now */
+  transform: translateY(0); /* Always visible for now */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid #333;
+}
+
+.interactive-buttons.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.action-button {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.action-button:hover {
+  transform: scale(1.1);
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.action-button.like:hover {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #22c55e;
+}
+
+.action-button.dislike:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+}
+
+.action-button.favorite:hover {
+  background: rgba(1, 255, 233, 0.2);
+  border-color: rgba(1, 255, 233, 0.4);
+  color: #01ffe9;
+}
+
+.action-button.review:hover {
+  background: rgba(252, 255, 108, 0.2);
+  border-color: rgba(252, 255, 108, 0.4);
+  color: #fcff6c;
+}
+
+.action-button.watchlist:hover {
+  background: rgba(147, 51, 234, 0.2);
+  border-color: rgba(147, 51, 234, 0.4);
+  color: #9333ea;
+}
+
+.action-button.share:hover {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #3b82f6;
+}
+
+/* Active States - Glass-themed Glow - Translucent with blur */
+.action-button.like.active,
+.action-button.like.active:hover {
+  background: rgba(34, 197, 94, 0.15) !important;
+  backdrop-filter: blur(10px) saturate(180%);
+  -webkit-backdrop-filter: blur(10px) saturate(180%);
+  border-color: rgba(34, 197, 94, 0.4) !important;
+  color: #4ade80 !important;
+  box-shadow: 
+    0 0 30px rgba(34, 197, 94, 0.4),
+    0 0 60px rgba(34, 197, 94, 0.2),
+    inset 0 0 20px rgba(34, 197, 94, 0.1) !important;
+  border: 1px solid rgba(34, 197, 94, 0.3) !important;
+}
+
+.action-button.dislike.active,
+.action-button.dislike.active:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+  backdrop-filter: blur(10px) saturate(180%);
+  -webkit-backdrop-filter: blur(10px) saturate(180%);
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #f87171 !important;
+  box-shadow: 
+    0 0 30px rgba(239, 68, 68, 0.4),
+    0 0 60px rgba(239, 68, 68, 0.2),
+    inset 0 0 20px rgba(239, 68, 68, 0.1) !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+}
+
+.action-button.favorite.active,
+.action-button.favorite.active:hover {
+  background: rgba(251, 191, 36, 0.15) !important;
+  backdrop-filter: blur(10px) saturate(180%);
+  -webkit-backdrop-filter: blur(10px) saturate(180%);
+  border-color: rgba(251, 191, 36, 0.4) !important;
+  color: #fcd34d !important;
+  box-shadow: 
+    0 0 30px rgba(251, 191, 36, 0.4),
+    0 0 60px rgba(251, 191, 36, 0.2),
+    inset 0 0 20px rgba(251, 191, 36, 0.1) !important;
+  border: 1px solid rgba(251, 191, 36, 0.3) !important;
+}
+
+.action-button.watchlist.active,
+.action-button.watchlist.active:hover {
+  background: rgba(147, 51, 234, 0.15) !important;
+  backdrop-filter: blur(10px) saturate(180%);
+  -webkit-backdrop-filter: blur(10px) saturate(180%);
+  border-color: rgba(147, 51, 234, 0.4) !important;
+  color: #a78bfa !important;
+  box-shadow: 
+    0 0 30px rgba(147, 51, 234, 0.4),
+    0 0 60px rgba(147, 51, 234, 0.2),
+    inset 0 0 20px rgba(147, 51, 234, 0.1) !important;
+  border: 1px solid rgba(147, 51, 234, 0.3) !important;
+}
+
+/* Navigation Dots */
+.navigation-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 2rem;
+}
+
+.nav-dot {
+  width: 8px;
+  height: 8px;
+  border: none;
+  border-radius: 50%;
+  background: #333;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.nav-dot:hover {
+  background: #666;
+}
+
+.nav-dot.active {
+  background: #01ffe9;
+  transform: scale(1.2);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .holographic-card {
+    min-width: 280px;
+    height: 550px;
+  }
+  
+  .movie-poster {
+    height: 350px;
+  }
+  
+  .movie-info {
+    padding: 1rem;
+  }
+  
+  .movie-title {
+    font-size: 1.25rem;
+  }
+  
+  .interactive-buttons {
+    padding: 0.75rem 1rem;
+  }
+  
+  .action-button {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* Smooth scrolling for touch devices */
+@media (hover: none) {
+  .holographic-gallery {
+    scroll-snap-type: x mandatory;
+  }
+  
+  .holographic-card {
+    scroll-snap-align: center;
+  }
+} 

@@ -3,10 +3,7 @@ import time
 import os
 import json
 
-TMDB_API_KEY = os.getenv('TMDB_API_KEY') 
-
-if not TMDB_API_KEY:
-    TMDB_API_KEY = 'b9e581106ed9db74350afe96fe1f1688'
+TMDB_API_KEY = os.getenv("TMDB_API_KEY", "").strip()
 
 # TMDB movie IDs to map (sample)
 tmdb_ids = ['27205', '157336', '19995']

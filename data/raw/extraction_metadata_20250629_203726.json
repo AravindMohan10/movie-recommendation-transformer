@@ -1,0 +1,14 @@
+{
+  "timestamp": "20250629_203726",
+  "total_movies": 182,
+  "files_created": [
+    "/Users/aravindmohan/movie-recommendation-transformer/data/raw/tmdb_movies_20250629_203726.jsonl",
+    "/Users/aravindmohan/movie-recommendation-transformer/data/raw/tmdb_movies_20250629_203726.csv"
+  ],
+  "extraction_config": {
+    "include_credits": true,
+    "include_reviews": false,
+    "include_videos": false,
+    "include_images": false
+  }
+}

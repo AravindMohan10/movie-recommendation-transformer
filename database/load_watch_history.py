@@ -1,13 +1,14 @@
+import os
 import psycopg2
 import csv
 
-# Connect to PostgreSQL
+# Connect to PostgreSQL (use env vars; no hardcoded passwords)
 conn = psycopg2.connect(
-    dbname='movie_recommendation',
-    user='postgres',
-    password='Believe@1007',
-    host='localhost',
-    port='5432'
+    dbname=os.getenv("DB_NAME", "movie_recommendation"),
+    user=os.getenv("DB_USER", "postgres"),
+    password=os.getenv("DB_PASSWORD", ""),
+    host=os.getenv("DB_HOST", "localhost"),
+    port=os.getenv("DB_PORT", "5432"),
 )
 cur = conn.cursor()
 

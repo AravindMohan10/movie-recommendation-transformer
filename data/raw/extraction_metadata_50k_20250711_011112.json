@@ -1,0 +1,15 @@
+{
+  "timestamp": "20250711_011112",
+  "total_movies": 14778,
+  "movies_with_reviews": 7439,
+  "files_created": [
+    "data/raw/tmdb_movies_50k_20250711_011112.jsonl",
+    "data/raw/tmdb_movies_50k_20250711_011112.csv"
+  ],
+  "extraction_config": {
+    "include_credits": true,
+    "include_reviews": true,
+    "include_videos": false,
+    "include_images": false
+  }
+}

@@ -61,6 +61,11 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# Local SQLite DBs (do not commit)
+cineai.db
+*.db
+!*.db.example
+
 # Flask stuff:
 instance/
 .webassets-cache
@@ -170,5 +175,27 @@ cython_debug/
 # Ruff stuff:
 .ruff_cache/
 
+# RAG user prefs (per-user cache; local only)
+data/rag/user_prefs/
+
+# Large files (over GitHub 100MB limit; keep locally, don't push)
+*.npz
+data/rag/chroma_db/
+
 # PyPI configuration file
 .pypirc
+
+# OS
+.DS_Store
+
+# Local env (never commit)
+backend/.env
+frontend/.env
+frontend/.env.local
+frontend/.env.production.local
+
+# Generated outputs (optional; remove to track evaluation results)
+# monitoring_report.json
+# evaluation_*.json
+# cf_only.json
+# my_results.json

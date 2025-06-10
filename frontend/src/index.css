@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+/* Prevent "all white" – dark base so app always has visible canvas */
+html {
+  background: #0a0a0a;
+}
+body {
+  background: #0a0a0a;
+  color: #e5e5e5;
+  min-height: 100vh;
+}
+#root {
+  min-height: 100vh;
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 11;
+  box-shadow:
+    0 80px 120px 0 #101015 inset,
+    0 -160px 240px 0 #101015 inset;
+}
+
+@keyframes gradientMove {
+  0% { background-position: 0% 50% }
+  100% { background-position: 100% 50% }
+}
+.bg-animate-gradient {
+  background: linear-gradient(120deg, #13132d 0%, #502664 40%, #1a237e 100%);
+  background-size: 400% 400%;
+  animation: gradientMove 20s ease-in-out infinite;
+}
+.spotlight {
+  pointer-events: none;
+  position: absolute;
+  top: 20vh;
+  left: 40vw;
+  width: 40vw;
+  height: 40vw;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,0.08) 0%, transparent 80%);
+  filter: blur(32px);
+  z-index: 3;
+}
+.glass {
+  background: rgba(22,22,32,0.74);
+  box-shadow: 0 4px 32px 0 rgba(10,10,40,0.07), 0 0 0 1px rgba(255,255,255,0.03) inset;
+  backdrop-filter: blur(12px);
+  border-radius: 24px;
+  border: 1px solid rgba(200,200,255,0.07);
+}
+.cine-btn {
+  background: linear-gradient(100deg, #242F3A 0%, #259f9b 23%, #ffe2a0 60%, #e3c180 80%, #2e4669 100%);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  box-shadow: 0 8px 40px 0 rgba(50,60,80,0.22), 0 2px 24px 0 #ffeba733;
+  letter-spacing: 0.01em;
+  text-shadow: 0 2px 8px #010914bb, 0 1px 12px #ffebb34c;
+  position: relative;
+  overflow: hidden;
+}
+
+.cine-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.19) 0%, rgba(255,255,255,0.03) 75%, transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.cine-btn:active {
+  filter: brightness(0.98) saturate(115%);
+}
+
+/* Landing page marquee (moved from style jsx) */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-marquee {
+  display: flex;
+  width: 200%;
+  animation: marquee 30s linear infinite;
+}

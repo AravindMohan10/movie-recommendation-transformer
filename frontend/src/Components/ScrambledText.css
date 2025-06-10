@@ -1,0 +1,13 @@
+.text-block p {
+    font-size: 2.7rem; /* Large! */
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    color: #fff;
+    line-height: 1.1;
+    display: inline-block;
+    margin-bottom: 0.25em;
+  }
+  .char {
+    transition: color 0.18s;
+    color: #ffe066; /* default highlight */
+  }

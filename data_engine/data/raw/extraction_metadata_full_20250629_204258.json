@@ -1,0 +1,14 @@
+{
+  "timestamp": "20250629_204258",
+  "total_movies": 0,
+  "files_created": [
+    "data/raw/tmdb_movies_full_20250629_204258.jsonl",
+    "data/raw/tmdb_movies_full_20250629_204258.csv"
+  ],
+  "extraction_config": {
+    "include_credits": true,
+    "include_reviews": false,
+    "include_videos": false,
+    "include_images": false
+  }
+}

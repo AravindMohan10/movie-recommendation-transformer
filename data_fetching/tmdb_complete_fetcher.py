@@ -4,7 +4,7 @@ import json
 import time
 import os
 
-TMDB_API_KEY = os.getenv('TMDB_API_KEY') or 'b9e581106ed9db74350afe96fe1f1688'
+TMDB_API_KEY = os.getenv("TMDB_API_KEY", "").strip()
 BASE_MOVIE_URL = 'https://api.themoviedb.org/3/movie/{}'
 REVIEWS_URL = 'https://api.themoviedb.org/3/movie/{}/reviews'
 OUTPUT_FILE = 'data/raw/tmdb_complete_dataset.jsonl'  # JSONL format
