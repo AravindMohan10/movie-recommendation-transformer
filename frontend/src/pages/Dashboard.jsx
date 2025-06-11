@@ -93,7 +93,7 @@ export default function Dashboard() {
     diversity: 0
   });
   const [confidenceLabel, setConfidenceLabel] = useState("—"); // "High confidence" | "Mixed confidence" | "Limited data"
-  const [sidebarOpen, setSidebarOpen] = useState(true); // Open by default, collapsible
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Closed until user opens it
   const [userInteractions, setUserInteractions] = useState({}); // Track interactions per movie: {movieId: {like: true, dislike: false, favorite: true}}
   const [watchlist, setWatchlist] = useState([]); // User's watchlist
   const [surpriseMovies, setSurpriseMovies] = useState([]);
