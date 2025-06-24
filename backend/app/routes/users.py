@@ -15,6 +15,11 @@ import urllib.parse
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+# So you can verify deployed backend has the 72-byte password fix (curl .../api/version)
+@router.get("/version", tags=["users"])
+def api_version():
+    return {"version": "1.0.0", "auth_fix": "72byte"}
+
 def get_db():
     db = SessionLocal()
     try:

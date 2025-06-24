@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from .models import User
 from .schemas import UserCreate
-from .auth import hash_password, verify_password
+from .auth import hash_password, verify_password, truncate_password_for_bcrypt
 
 def get_user_by_email(db: Session, email: str):
     return db.query(User).filter(User.email == email).first()
@@ -10,7 +10,9 @@ def get_user_by_username(db: Session, username: str):
     return db.query(User).filter(User.username == username).first()
 
 def create_user(db: Session, user: UserCreate):
-    hashed_pw = hash_password(user.password)
+    # Truncate before hashing so bcrypt 72-byte limit is never hit (belt-and-suspenders with auth.hash_password)
+    safe_password = truncate_password_for_bcrypt(user.password)
+    hashed_pw = hash_password(safe_password)
     db_user = User(
         username=user.username,
         email=user.email,

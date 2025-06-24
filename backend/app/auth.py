@@ -73,18 +73,18 @@ def get_current_user(
     return user
 
 
-def _truncate_password_for_bcrypt(password: str) -> str:
+def truncate_password_for_bcrypt(password: str) -> str:
     """Bcrypt only uses first 72 bytes; truncate so long passwords don't raise."""
     b = password.encode("utf-8")[:72]
     return b.decode("utf-8", errors="ignore")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(_truncate_password_for_bcrypt(plain_password), hashed_password)
+    return pwd_context.verify(truncate_password_for_bcrypt(plain_password), hashed_password)
 
 
 def hash_password(plain_password: str) -> str:
-    return pwd_context.hash(_truncate_password_for_bcrypt(plain_password))
+    return pwd_context.hash(truncate_password_for_bcrypt(plain_password))
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
