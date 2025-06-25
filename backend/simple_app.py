@@ -44,8 +44,12 @@ class UserOut(BaseModel):
     username: str
     email: EmailStr
 
-# Password hashing
+# Password hashing (bcrypt only uses first 72 bytes)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def _truncate_password_for_bcrypt(password: str) -> str:
+    b = password.encode("utf-8")[:72]
+    return b.decode("utf-8", errors="ignore")
 
 # JWT settings
 ALGORITHM = "HS256"
@@ -142,7 +146,7 @@ def get_user_by_username(db, username: str):
     return cursor.fetchone()
 
 def create_user(db, user: UserCreate):
-    hashed_pw = pwd_context.hash(user.password)
+    hashed_pw = pwd_context.hash(_truncate_password_for_bcrypt(user.password))
     cursor = db.cursor()
     cursor.execute(
         "INSERT INTO users (username, email, hashed_password) VALUES (?, ?, ?)",
@@ -155,7 +159,7 @@ def create_user(db, user: UserCreate):
     return cursor.fetchone()
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return pwd_context.verify(_truncate_password_for_bcrypt(plain_password), hashed_password)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()

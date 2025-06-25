@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from ..schemas import UserOut, UserCreate, ForgotPasswordRequest, ResetPasswordRequest
 from ..crud import get_user_by_email, get_user_by_username, create_user
 from ..database import SessionLocal
-from ..auth import verify_password, create_access_token, get_current_user, hash_password
+from ..auth import verify_password, create_access_token, get_current_user, hash_password, truncate_password_for_bcrypt
 from ..models import User, PasswordResetToken
 from ..limiter import limiter
 from datetime import datetime, timezone, timedelta
@@ -31,6 +31,12 @@ def get_db():
 @limiter.exempt
 def signup(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     try:
+        # Truncate password here so bcrypt never sees >72 bytes, no matter what code path runs
+        user = UserCreate(
+            username=user.username,
+            email=user.email,
+            password=truncate_password_for_bcrypt(user.password),
+        )
         if get_user_by_email(db, user.email):
             raise HTTPException(status_code=400, detail="Email already registered.")
         if get_user_by_username(db, user.username):
