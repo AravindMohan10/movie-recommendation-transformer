@@ -94,7 +94,7 @@ async def startup_event():
         logger.info("Database tables initialized (Users, UserInteractions, Watchlist, PasswordResetToken, NewsArticle)")
     except Exception as e:
         logger.exception("Database initialization error: %s", e)
-        raise
+        # Don't raise: allow app to bind so new deploys can serve (DB may work on first request)
 
     try:
         import sys

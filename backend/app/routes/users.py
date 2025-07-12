@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # So you can verify deployed backend has the 72-byte password fix (curl .../api/version)
 @router.get("/version", tags=["users"])
 def api_version():
-    return {"version": "1.0.0", "auth_fix": "72byte"}
+    return {"version": "1.0.0", "auth_fix": "72byte", "schema_truncate": "v1"}
 
 def get_db():
     db = SessionLocal()
@@ -47,8 +47,25 @@ def signup(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
+        err_msg = str(e)
+        # If bcrypt 72-byte error, retry with truncated password (covers old deployed code without upfront truncation)
+        if "72 bytes" in err_msg or "truncate" in err_msg.lower():
+            try:
+                safe_user = UserCreate(
+                    username=user.username,
+                    email=user.email,
+                    password=truncate_password_for_bcrypt(user.password),
+                )
+                created_user = create_user(db, safe_user)
+                logger.info("User created (after 72-byte retry): user_id=%s", created_user.user_id)
+                return created_user
+            except HTTPException:
+                raise
+            except Exception as retry_e:
+                logger.exception("Signup retry error")
+                raise HTTPException(status_code=500, detail=f"Signup failed: {str(retry_e)}")
         logger.exception("Signup error")
-        raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Signup failed: {err_msg}")
 
 @router.post("/login")
 @limiter.exempt
