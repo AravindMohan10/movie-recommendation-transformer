@@ -73,8 +73,12 @@ def get_current_user(
     return user
 
 
-def truncate_password_for_bcrypt(password: str) -> str:
+def truncate_password_for_bcrypt(password: str | bytes) -> str:
     """Bcrypt only uses first 72 bytes; truncate so long passwords don't raise."""
+    if isinstance(password, bytes):
+        password = password.decode("utf-8", errors="ignore")
+    if not isinstance(password, str):
+        password = str(password) if password is not None else ""
     b = password.encode("utf-8")[:72]
     return b.decode("utf-8", errors="ignore")
 

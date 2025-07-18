@@ -1,9 +1,11 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
 
-def _truncate_password_72_bytes(v: str) -> str:
+def _truncate_password_72_bytes(v) -> str:
     """Bcrypt limit: 72 bytes. Truncate at schema level so no code path ever sees longer."""
+    if isinstance(v, bytes):
+        v = v.decode("utf-8", errors="ignore")
     if not isinstance(v, str):
-        return v
+        return str(v) if v is not None else ""
     b = v.encode("utf-8")[:72]
     return b.decode("utf-8", errors="ignore")
 
@@ -14,8 +16,14 @@ class UserCreate(BaseModel):
 
     @field_validator("password", mode="before")
     @classmethod
-    def truncate_password(cls, v: str) -> str:
+    def truncate_password(cls, v) -> str:
         return _truncate_password_72_bytes(v)
+
+    @model_validator(mode="after")
+    def ensure_password_truncated(self):
+        """Force truncation after model is built (catches any path where before-validator was skipped)."""
+        self.password = _truncate_password_72_bytes(self.password)
+        return self
 
 class UserLogin(BaseModel):
     email: EmailStr
