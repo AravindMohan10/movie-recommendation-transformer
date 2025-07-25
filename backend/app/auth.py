@@ -74,7 +74,7 @@ def get_current_user(
 
 
 def truncate_password_for_bcrypt(password: str | bytes) -> str:
-    """Bcrypt only uses first 72 bytes; truncate so long passwords don't raise."""
+    """Truncate password to 72 bytes. Only used for verify_password (backward compat with existing hashes)."""
     if isinstance(password, bytes):
         password = password.decode("utf-8", errors="ignore")
     if not isinstance(password, str):
@@ -84,22 +84,26 @@ def truncate_password_for_bcrypt(password: str | bytes) -> str:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    # Truncate for backward compatibility (existing users may have passwords that were truncated)
     return pwd_context.verify(truncate_password_for_bcrypt(plain_password), hashed_password)
 
 
 def hash_password(plain_password: str | bytes) -> str:
-    safe = truncate_password_for_bcrypt(plain_password)
-    try:
-        return pwd_context.hash(safe)
-    except Exception as e:
-        if "72 bytes" in str(e):
-            # Fallback: force truncate and retry (handles any path where long password slipped through)
-            if isinstance(plain_password, bytes):
-                forced = plain_password[:72].decode("utf-8", errors="ignore")
-            else:
-                forced = (plain_password or "").encode("utf-8")[:72].decode("utf-8", errors="ignore")
-            return pwd_context.hash(forced)
-        raise
+    """Hash password. Password should already be validated (<=72 bytes) by schema."""
+    if isinstance(plain_password, bytes):
+        plain_password = plain_password.decode("utf-8", errors="ignore")
+    if not isinstance(plain_password, str):
+        plain_password = str(plain_password) if plain_password is not None else ""
+    
+    # Defensive check: if somehow >72 bytes, raise instead of truncating
+    byte_length = len(plain_password.encode("utf-8"))
+    if byte_length > 72:
+        raise ValueError(
+            f"Password is too long ({byte_length} bytes). Maximum 72 bytes. "
+            "This should have been caught by validation."
+        )
+    
+    return pwd_context.hash(plain_password)
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()

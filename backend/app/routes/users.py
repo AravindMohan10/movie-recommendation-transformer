@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from ..schemas import UserOut, UserCreate, ForgotPasswordRequest, ResetPasswordRequest
 from ..crud import get_user_by_email, get_user_by_username, create_user
 from ..database import SessionLocal
-from ..auth import verify_password, create_access_token, get_current_user, hash_password, truncate_password_for_bcrypt
+from ..auth import verify_password, create_access_token, get_current_user, hash_password
 from ..models import User, PasswordResetToken
 from ..limiter import limiter
 from datetime import datetime, timezone, timedelta
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # So you can verify deployed backend has the 72-byte password fix (curl .../api/version)
 @router.get("/version", tags=["users"])
 def api_version():
-    return {"version": "1.0.0", "auth_fix": "72byte", "schema_truncate": "v1", "body_truncate": "v1"}
+    return {"version": "1.0.0", "password_validation": "v1", "reject_over_72_bytes": True}
 
 def get_db():
     db = SessionLocal()
@@ -29,13 +29,9 @@ def get_db():
 
 @router.post("/signup", response_model=UserOut)
 @limiter.exempt
-async def signup(request: Request, db: Session = Depends(get_db)):
+async def signup(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     try:
-        # Truncate password from raw body first so bcrypt never sees >72 bytes (no reliance on schema/order)
-        body = await request.json()
-        if isinstance(body.get("password"), (str, bytes)):
-            body["password"] = truncate_password_for_bcrypt(body["password"])
-        user = UserCreate(**body)
+        # Password validation happens in UserCreate schema (raises ValueError if >72 bytes)
         if get_user_by_email(db, user.email):
             raise HTTPException(status_code=400, detail="Email already registered.")
         if get_user_by_username(db, user.username):
@@ -45,26 +41,13 @@ async def signup(request: Request, db: Session = Depends(get_db)):
         return created_user
     except HTTPException:
         raise
+    except ValueError as e:
+        # Password validation errors (e.g., too long) - return 400 with clear message
+        logger.warning("Password validation failed: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        err_msg = str(e)
-        # If bcrypt 72-byte error, retry with truncated password (covers old deployed code without upfront truncation)
-        if "72 bytes" in err_msg or "truncate" in err_msg.lower():
-            try:
-                safe_user = UserCreate(
-                    username=user.username,
-                    email=user.email,
-                    password=truncate_password_for_bcrypt(user.password),
-                )
-                created_user = create_user(db, safe_user)
-                logger.info("User created (after 72-byte retry): user_id=%s", created_user.user_id)
-                return created_user
-            except HTTPException:
-                raise
-            except Exception as retry_e:
-                logger.exception("Signup retry error")
-                raise HTTPException(status_code=500, detail=f"Signup failed: {str(retry_e)}")
         logger.exception("Signup error")
-        raise HTTPException(status_code=500, detail=f"Signup failed: {err_msg}")
+        raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
 
 @router.post("/login")
 @limiter.exempt
@@ -306,6 +289,10 @@ def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db))
         
     except HTTPException:
         raise
+    except ValueError as e:
+        # Password validation errors (e.g., too long) - return 400 with clear message
+        logger.warning("Password validation failed: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error resetting password: {e}", exc_info=True)
         db.rollback()

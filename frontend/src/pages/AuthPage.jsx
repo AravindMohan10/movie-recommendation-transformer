@@ -215,7 +215,8 @@ export default function AuthPage() {
               <input
                 type="password"
                 name="password"
-                placeholder="Password"
+                placeholder="Password (max 64 characters)"
+                maxLength={64}
                 className="w-full p-4 rounded-xl bg-black/40 backdrop-blur-sm border border-teal-700/30 text-white placeholder-slate-400 focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-400/30 transition-all font-medium"
                 value={form.password}
                 onChange={handleChange}
@@ -234,7 +235,8 @@ export default function AuthPage() {
                 <input
                   type="password"
                   name="confirmPassword"
-                  placeholder="Confirm password"
+                  placeholder="Confirm password (max 64 characters)"
+                  maxLength={64}
                   className="w-full p-4 rounded-xl bg-black/40 backdrop-blur-sm border border-teal-700/30 text-white placeholder-slate-400 focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-400/30 transition-all font-medium"
                   value={form.confirmPassword}
                   onChange={handleChange}

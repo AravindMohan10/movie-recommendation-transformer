@@ -1,13 +1,18 @@
-from pydantic import BaseModel, EmailStr, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, field_validator
 
-def _truncate_password_72_bytes(v) -> str:
-    """Bcrypt limit: 72 bytes. Truncate at schema level so no code path ever sees longer."""
+def _validate_password_byte_length(v) -> str:
+    """Validate password byte length (bcrypt limit: 72 bytes). Reject if too long."""
     if isinstance(v, bytes):
         v = v.decode("utf-8", errors="ignore")
     if not isinstance(v, str):
-        return str(v) if v is not None else ""
-    b = v.encode("utf-8")[:72]
-    return b.decode("utf-8", errors="ignore")
+        v = str(v) if v is not None else ""
+    byte_length = len(v.encode("utf-8"))
+    if byte_length > 72:
+        raise ValueError(
+            f"Password is too long. Maximum 72 bytes (your password is {byte_length} bytes). "
+            "Use at most 64 characters to be safe."
+        )
+    return v
 
 class UserCreate(BaseModel):
     username: str
@@ -16,14 +21,8 @@ class UserCreate(BaseModel):
 
     @field_validator("password", mode="before")
     @classmethod
-    def truncate_password(cls, v) -> str:
-        return _truncate_password_72_bytes(v)
-
-    @model_validator(mode="after")
-    def ensure_password_truncated(self):
-        """Force truncation after model is built (catches any path where before-validator was skipped)."""
-        self.password = _truncate_password_72_bytes(self.password)
-        return self
+    def validate_password_length(cls, v) -> str:
+        return _validate_password_byte_length(v)
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -46,5 +45,5 @@ class ResetPasswordRequest(BaseModel):
 
     @field_validator("new_password", mode="before")
     @classmethod
-    def truncate_new_password(cls, v: str) -> str:
-        return _truncate_password_72_bytes(v)
+    def validate_new_password_length(cls, v: str) -> str:
+        return _validate_password_byte_length(v)
