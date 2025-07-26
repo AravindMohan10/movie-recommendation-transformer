@@ -87,8 +87,19 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(truncate_password_for_bcrypt(plain_password), hashed_password)
 
 
-def hash_password(plain_password: str) -> str:
-    return pwd_context.hash(truncate_password_for_bcrypt(plain_password))
+def hash_password(plain_password: str | bytes) -> str:
+    safe = truncate_password_for_bcrypt(plain_password)
+    try:
+        return pwd_context.hash(safe)
+    except Exception as e:
+        if "72 bytes" in str(e):
+            # Fallback: force truncate and retry (handles any path where long password slipped through)
+            if isinstance(plain_password, bytes):
+                forced = plain_password[:72].decode("utf-8", errors="ignore")
+            else:
+                forced = (plain_password or "").encode("utf-8")[:72].decode("utf-8", errors="ignore")
+            return pwd_context.hash(forced)
+        raise
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
