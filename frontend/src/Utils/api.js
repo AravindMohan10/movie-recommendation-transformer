@@ -5,7 +5,17 @@ const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 async function handleResponse(response) {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    // Handle Pydantic validation errors (detail is an array) or simple error strings
+    let errorMessage;
+    if (Array.isArray(errorData.detail)) {
+      // Extract message from first validation error
+      errorMessage = errorData.detail[0]?.msg || errorData.detail[0]?.message || JSON.stringify(errorData.detail);
+    } else if (typeof errorData.detail === 'string') {
+      errorMessage = errorData.detail;
+    } else {
+      errorMessage = errorData.message || `HTTP error! status: ${response.status}`;
+    }
+    throw new Error(errorMessage);
   }
   return response.json();
 }

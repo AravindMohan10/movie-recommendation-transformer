@@ -43,6 +43,14 @@ export default function AuthPage() {
           throw new Error("Passwords do not match.");
         if (form.password.length < 6)
           throw new Error("Password must be at least 6 characters.");
+        // Check byte length (bcrypt limit: 72 bytes)
+        const passwordBytes = new TextEncoder().encode(form.password).length;
+        if (passwordBytes > 72) {
+          throw new Error(`Password is too long (${passwordBytes} bytes). Maximum 72 bytes. Use at most 64 characters to be safe.`);
+        }
+        if (form.password.length > 64) {
+          throw new Error("Password must be at most 64 characters.");
+        }
 
         await signup({
           username: form.username,
