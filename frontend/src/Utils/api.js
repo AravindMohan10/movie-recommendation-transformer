@@ -31,7 +31,14 @@ export async function signup({ username, email, password }) {
     return handleResponse(res);
   } catch (error) {
     console.error('Signup error:', error);
-    throw new Error('Failed to connect to server. Please check if the backend is running.');
+    // Check for CORS/preflight errors specifically
+    if (error.message.includes('CORS') || error.message.includes('preflight') || error.message.includes('Access-Control')) {
+      throw new Error('CORS error: Backend is not allowing requests from this origin. Check ALLOWED_ORIGINS on Fly.io.');
+    }
+    if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
+      throw new Error('Failed to connect to server. Please check if the backend is running and CORS is configured.');
+    }
+    throw error;
   }
 }
 

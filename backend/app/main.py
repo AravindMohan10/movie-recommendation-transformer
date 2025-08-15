@@ -31,13 +31,23 @@ else:
 # CORS: use ALLOWED_ORIGINS env (comma-separated) or default to localhost
 _origins_raw = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000")
 ALLOWED_ORIGINS = [x.strip() for x in _origins_raw.split(",") if x.strip()]
+# CORS middleware must be added BEFORE other middleware that might intercept requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+# Explicit OPTIONS handler for all routes (fallback if CORS middleware doesn't catch it)
+# Must be exempt from rate limiting so preflight requests always work
+@app.options("/{full_path:path}")
+@limiter.exempt
+async def options_handler(request: Request):
+    """Handle OPTIONS preflight requests explicitly."""
+    return {"message": "OK"}
 
 
 # Request ID middleware (for tracing in production)
