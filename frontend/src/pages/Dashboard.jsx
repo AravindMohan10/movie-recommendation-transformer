@@ -212,16 +212,21 @@ export default function Dashboard() {
       // Onboarding is optional for showcasing - we show popular movies as fallback
       await fetchRecommendations();
       
-      // Check onboarding status for UI hints (but don't block)
+      // Check onboarding status and show onboarding flow for new users
       try {
         const onboardingStatus = await getOnboardingStatus();
         if (!onboardingStatus.onboarding_completed) {
-          // Don't force onboarding, just note it's available
-          devLog('Onboarding available but not required');
+          // Show onboarding flow for new users who haven't completed it
+          devLog('Showing onboarding flow for new user');
+          setShowOnboarding(true);
+        } else {
+          setShowOnboarding(false);
+          setOnboardingCompleted(true);
         }
       } catch (error) {
-        // Onboarding status check failed, but recommendations should still work
-        devLog('Onboarding status unavailable, showing recommendations anyway');
+        // Onboarding status check failed - assume not completed and show onboarding
+        devLog('Onboarding status unavailable, showing onboarding flow');
+        setShowOnboarding(true);
       }
       
     } catch (error) {
