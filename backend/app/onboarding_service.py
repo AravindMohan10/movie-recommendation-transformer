@@ -259,18 +259,30 @@ class OnboardingService:
             data = self._get_data(key)
             
             if not data:
-                return {"completed": True, "stage": None}  # User has completed onboarding
+                # No onboarding data found = new user, onboarding not completed
+                return {
+                    "completed": False, 
+                    "onboarding_completed": False,
+                    "stage": None
+                }
             
             onboarding_data = json.loads(data) if isinstance(data, str) else data
+            completed = onboarding_data.get("completed", False)
             return {
-                "completed": onboarding_data.get("completed", False),
+                "completed": completed,
+                "onboarding_completed": completed,  # Frontend expects this field
                 "stage": onboarding_data.get("stage", None),
                 "started_at": onboarding_data.get("started_at", None)
             }
             
         except Exception as e:
             logger.error(f"Error getting onboarding status: {e}")
-            return {"error": "Failed to get onboarding status"}
+            # On error, assume onboarding not completed (safer for new users)
+            return {
+                "completed": False,
+                "onboarding_completed": False,
+                "stage": None
+            }
     
     def get_user_preferences(self, user_id: int) -> Dict:
         """Get user preferences from onboarding"""

@@ -592,6 +592,56 @@ async def update_onboarding(
             detail=f"Failed to update onboarding: {str(e)}"
         )
 
+@router.post("/onboarding/complete")
+async def complete_onboarding(
+    onboarding_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Mark onboarding as completed"""
+    try:
+        # If onboarding_data has preferences, update them
+        if onboarding_data and not onboarding_data.get("skipped"):
+            # Store preferences if provided
+            key = f"onboarding:{current_user.user_id}"
+            existing_data = onboarding_service._get_data(key)
+            if existing_data:
+                onboarding_info = json.loads(existing_data) if isinstance(existing_data, str) else existing_data
+                onboarding_info["completed"] = True
+                onboarding_info["completed_at"] = datetime.now().isoformat()
+                if onboarding_data.get("preferences"):
+                    onboarding_info["preferences"] = onboarding_data["preferences"]
+                onboarding_service._set_data(key, onboarding_info, 86400)
+            else:
+                # Create new completion record
+                completion_data = {
+                    "user_id": current_user.user_id,
+                    "completed": True,
+                    "completed_at": datetime.now().isoformat(),
+                    "preferences": onboarding_data.get("preferences", {})
+                }
+                onboarding_service._set_data(key, completion_data, 86400)
+        else:
+            # User skipped onboarding - mark as completed anyway
+            key = f"onboarding:{current_user.user_id}"
+            completion_data = {
+                "user_id": current_user.user_id,
+                "completed": True,
+                "skipped": True,
+                "completed_at": datetime.now().isoformat(),
+                "preferences": {}
+            }
+            onboarding_service._set_data(key, completion_data, 86400)
+        
+        return {"message": "Onboarding completed successfully", "onboarding_completed": True}
+        
+    except Exception as e:
+        logger.error(f"Error completing onboarding: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to complete onboarding: {str(e)}"
+        )
+
 def _is_documentary(movie_data: dict) -> bool:
     """True if movie is a documentary (excluded from Surprise Me / random)."""
     genres = movie_data.get("genres") or []
