@@ -822,19 +822,15 @@ class MovieRecommendationModel:
                 
                 if movie_data_path.exists():
                     with open(movie_data_path, 'r', encoding='utf-8') as f:
-                        count = 0
                         for line in f:
                             try:
                                 movie = json.loads(line.strip())
                                 movie_id = movie.get('tmdb_id') or movie.get('id')
                                 if movie_id:
                                     self.movie_data[str(movie_id)] = movie
-                                    count += 1
-                                    if count >= 1000:  # Limit to first 1000 for speed
-                                        break
                             except:
                                 continue
-                    logger.info(f"✅ Loaded {len(self.movie_data)} movies for fallback (limited to 1000 for speed)")
+                    logger.info(f"✅ Loaded {len(self.movie_data)} movies for fallback")
                 else:
                     logger.error(f"Movie data file not found at {movie_data_path}")
             except Exception as e:
