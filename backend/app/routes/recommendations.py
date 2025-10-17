@@ -189,26 +189,23 @@ async def get_recommendations(
                         elif isinstance(director_field, str):
                             directors = [director_field]
                 
-                # Build poster URL - ensure it's a full URL
-                poster_path = movie_data.get("poster_path") or rec.get("poster_path")
+                # Build poster URL - only use poster from movie_data when lookup succeeded.
+                # When movie_data is empty, do NOT use rec.get("poster_path") (could be wrong from stale cache).
                 poster_url = None
-                
-                if poster_path:
-                    # Handle None or empty string
+                if movie_data:
+                    poster_path = movie_data.get("poster_path")
                     if poster_path and str(poster_path).strip() and str(poster_path) != "None":
                         poster_path = str(poster_path).strip()
                         if poster_path.startswith("http"):
                             poster_url = poster_path
                         elif poster_path.startswith("/"):
-                            # TMDB path like "/abc123.jpg"
                             poster_url = f"https://image.tmdb.org/t/p/w342{poster_path}"
                         else:
-                            # Just filename, add path
                             poster_url = f"https://image.tmdb.org/t/p/w342/{poster_path}"
-                
-                # Fallback placeholder if no poster
+                # Placeholder when no poster (missing movie_data or no poster_path) - use title for this rec
                 if not poster_url:
-                    poster_url = f"https://via.placeholder.com/342x513/1a1a1a/666666?text={movie_data.get('title', 'No+Poster')[:20].replace(' ', '+')}"
+                    title_for_placeholder = (movie_data.get("title") or rec.get("title") or f"Movie {movie_id}")[:20].replace(" ", "+")
+                    poster_url = f"https://via.placeholder.com/342x513/1a1a1a/666666?text={title_for_placeholder}"
                 
                 conf = rec.get("confidence", 0.5)
                 if conf >= 0.7:

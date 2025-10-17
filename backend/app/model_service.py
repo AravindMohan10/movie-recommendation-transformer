@@ -36,6 +36,9 @@ logger.info(f"🔧 Cache Configuration: {'DEVELOPMENT' if DEV_MODE else 'PRODUCT
 # RAG + LLM: keep transformers in codebase but use CF + RAG rerank
 USE_RAG_LLM_RERANK = os.getenv("USE_RAG_LLM_RERANK", "true").lower() in ("1", "true", "yes")
 
+# Bump this when poster/movie_data logic changes so cached recommendations are invalidated
+REC_CACHE_VERSION = "v2"
+
 # Main recommendations: only movies from this year onward (older movies in "Classics" genre)
 MAIN_REC_MIN_YEAR = int(os.getenv("MAIN_REC_MIN_YEAR", "1980"))
 
@@ -297,7 +300,7 @@ class MovieRecommendationModel:
         start_time = time.time()
         
         rag_suffix = "rag" if USE_RAG_LLM_RERANK else "cf"
-        cache_key = f"recommendations:{user_id}:{n_recommendations}:{rag_suffix}"
+        cache_key = f"recommendations:{user_id}:{n_recommendations}:{rag_suffix}:{REC_CACHE_VERSION}"
 
         # Check cache first (unless force_refresh is requested)
         if force_refresh:
