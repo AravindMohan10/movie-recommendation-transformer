@@ -99,9 +99,9 @@ async def startup_event():
     try:
         # Create database tables if they don't exist
         from .database import Base, engine
-        from .models import User, UserInteraction, Watchlist, PasswordResetToken, NewsArticle
+        from .models import User, UserInteraction, Watchlist, PasswordResetToken, NewsArticle, OnboardingStatus
         Base.metadata.create_all(bind=engine)
-        logger.info("Database tables initialized (Users, UserInteractions, Watchlist, PasswordResetToken, NewsArticle)")
+        logger.info("Database tables initialized (Users, UserInteractions, Watchlist, PasswordResetToken, NewsArticle, OnboardingStatus)")
     except Exception as e:
         logger.exception("Database initialization error: %s", e)
         # Don't raise: allow app to bind so new deploys can serve (DB may work on first request)

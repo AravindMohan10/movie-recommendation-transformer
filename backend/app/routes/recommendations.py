@@ -13,7 +13,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from ..database import get_db
-from ..models import User
+from ..models import User, OnboardingStatus
 from ..auth import get_current_user
 from ..model_service import get_model_service
 from ..onboarding_service import onboarding_service
@@ -38,6 +38,60 @@ except Exception as e:
     MONITORING_AVAILABLE = False
 
 router = APIRouter(prefix="/api/recommendations", tags=["recommendations"])
+
+
+def _get_onboarding_status_db(db: Session, user_id: int) -> Dict[str, Optional[object]]:
+    """Get onboarding status from the database (persistent across logins)."""
+    row = db.query(OnboardingStatus).filter(OnboardingStatus.user_id == user_id).first()
+    if not row:
+        return {
+            "completed": False,
+            "onboarding_completed": False,
+            "stage": None,
+            "skipped": False,
+            "data": {},
+        }
+    data = {}
+    if row.data:
+        try:
+            data = json.loads(row.data)
+        except Exception:
+            data = {}
+    return {
+        "completed": bool(row.completed),
+        "onboarding_completed": bool(row.completed),
+        "stage": row.stage,
+        "skipped": bool(row.skipped),
+        "data": data,
+    }
+
+
+def _upsert_onboarding_status(
+    db: Session,
+    user_id: int,
+    *,
+    completed: Optional[bool] = None,
+    skipped: Optional[bool] = None,
+    stage: Optional[int] = None,
+    data: Optional[Dict] = None,
+) -> OnboardingStatus:
+    """Create or update onboarding status row."""
+    row = db.query(OnboardingStatus).filter(OnboardingStatus.user_id == user_id).first()
+    if not row:
+        row = OnboardingStatus(user_id=user_id)
+        db.add(row)
+    if completed is not None:
+        row.completed = bool(completed)
+    if skipped is not None:
+        row.skipped = bool(skipped)
+    if stage is not None:
+        row.stage = stage
+    if data is not None:
+        row.data = json.dumps(data)
+    row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(row)
+    return row
 
 @router.get("/")
 @limiter.limit("60/minute")
@@ -64,9 +118,9 @@ async def get_recommendations(
                 detail=f"Model service initialization failed: {str(service_error)}"
             )
         
-        # Check onboarding status for UI purposes, but always return recommendations
-        onboarding_status = onboarding_service.get_onboarding_status(current_user.user_id)
-        onboarding_completed = onboarding_status.get("completed", False)
+        # Check onboarding status from DB (persistent across logins)
+        onboarding_status = _get_onboarding_status_db(db, current_user.user_id)
+        onboarding_completed = onboarding_status.get("onboarding_completed", False)
         
         # Check user interaction count for progressive enhancement
         interaction_count = db.query(UserInteraction).filter(
@@ -546,8 +600,7 @@ async def get_onboarding_status(
 ):
     """Get onboarding status for the current user"""
     try:
-        status = onboarding_service.get_onboarding_status(current_user.user_id)
-        return status
+        return _get_onboarding_status_db(db, current_user.user_id)
         
     except Exception as e:
         raise HTTPException(
@@ -563,6 +616,14 @@ async def start_onboarding(
     """Start the onboarding process"""
     try:
         result = onboarding_service.start_onboarding(current_user.user_id)
+        _upsert_onboarding_status(
+            db,
+            current_user.user_id,
+            completed=False,
+            skipped=False,
+            stage=1,
+            data={"started_at": datetime.now(timezone.utc).isoformat()},
+        )
         return result
         
     except Exception as e:
@@ -581,6 +642,25 @@ async def update_onboarding(
     """Update onboarding progress"""
     try:
         result = onboarding_service.update_onboarding(current_user.user_id, stage, selections)
+
+        # Persist progress so onboarding isn't re-prompted after completion
+        key_map = {1: "genres", 2: "favorite_movies", 3: "mood_preferences"}
+        status = _get_onboarding_status_db(db, current_user.user_id)
+        data = status.get("data", {}) if isinstance(status.get("data", {}), dict) else {}
+        pref_key = key_map.get(stage)
+        if pref_key:
+            data.setdefault("preferences", {})
+            data["preferences"][pref_key] = selections
+
+        completed = bool(result.get("completed", False))
+        _upsert_onboarding_status(
+            db,
+            current_user.user_id,
+            completed=completed,
+            skipped=False,
+            stage=result.get("stage", stage),
+            data=data,
+        )
         return result
         
     except Exception as e:
@@ -597,39 +677,45 @@ async def complete_onboarding(
 ):
     """Mark onboarding as completed"""
     try:
-        # If onboarding_data has preferences, update them
-        if onboarding_data and not onboarding_data.get("skipped"):
-            # Store preferences if provided
-            key = f"onboarding:{current_user.user_id}"
-            existing_data = onboarding_service._get_data(key)
-            if existing_data:
-                onboarding_info = json.loads(existing_data) if isinstance(existing_data, str) else existing_data
-                onboarding_info["completed"] = True
-                onboarding_info["completed_at"] = datetime.now().isoformat()
-                if onboarding_data.get("preferences"):
-                    onboarding_info["preferences"] = onboarding_data["preferences"]
-                onboarding_service._set_data(key, onboarding_info, 86400)
+        skipped = bool(onboarding_data.get("skipped")) if onboarding_data else False
+        preferences = {}
+        if onboarding_data and not skipped:
+            if onboarding_data.get("preferences") and isinstance(onboarding_data.get("preferences"), dict):
+                preferences = onboarding_data.get("preferences", {})
             else:
-                # Create new completion record
-                completion_data = {
+                preferences = onboarding_data
+
+        data = {
+            "preferences": preferences,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        _upsert_onboarding_status(
+            db,
+            current_user.user_id,
+            completed=True,
+            skipped=skipped,
+            stage=4,
+            data=data,
+        )
+
+        # Keep in-memory onboarding service in sync (best-effort)
+        try:
+            key = f"onboarding:{current_user.user_id}"
+            onboarding_service._set_data(
+                key,
+                {
                     "user_id": current_user.user_id,
                     "completed": True,
-                    "completed_at": datetime.now().isoformat(),
-                    "preferences": onboarding_data.get("preferences", {})
-                }
-                onboarding_service._set_data(key, completion_data, 86400)
-        else:
-            # User skipped onboarding - mark as completed anyway
-            key = f"onboarding:{current_user.user_id}"
-            completion_data = {
-                "user_id": current_user.user_id,
-                "completed": True,
-                "skipped": True,
-                "completed_at": datetime.now().isoformat(),
-                "preferences": {}
-            }
-            onboarding_service._set_data(key, completion_data, 86400)
-        
+                    "skipped": skipped,
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                    "preferences": preferences,
+                },
+                86400,
+            )
+        except Exception:
+            pass
+
         return {"message": "Onboarding completed successfully", "onboarding_completed": True}
         
     except Exception as e:

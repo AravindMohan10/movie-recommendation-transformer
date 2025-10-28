@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float, Text, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, Float, Text, ForeignKey, UniqueConstraint, Boolean
 from datetime import datetime, timezone
 from .database import Base
 
@@ -70,3 +70,16 @@ class NewsArticle(Base):
     tags = Column(String(500), nullable=True)  # comma-separated e.g. "Sci-Fi, Drama, Nolan"
     published_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class OnboardingStatus(Base):
+    """Persisted onboarding status so prompts are consistent across logins."""
+    __tablename__ = "onboarding_status"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), unique=True, nullable=False, index=True)
+    completed = Column(Boolean, default=False, nullable=False)
+    skipped = Column(Boolean, default=False, nullable=False)
+    stage = Column(Integer, nullable=True)
+    data = Column(Text, nullable=True)  # JSON string of onboarding preferences/progress
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
