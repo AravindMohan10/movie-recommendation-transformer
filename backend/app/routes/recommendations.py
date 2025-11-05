@@ -725,6 +725,53 @@ async def complete_onboarding(
             detail=f"Failed to complete onboarding: {str(e)}"
         )
 
+
+@router.post("/onboarding/reset")
+async def reset_onboarding(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Reset onboarding so user can update preferences."""
+    try:
+        # Reset persistent status
+        _upsert_onboarding_status(
+            db,
+            current_user.user_id,
+            completed=False,
+            skipped=False,
+            stage=1,
+            data={"preferences": {}},
+        )
+        # Reset in-memory onboarding service (best-effort)
+        try:
+            key = f"onboarding:{current_user.user_id}"
+            onboarding_service._set_data(
+                key,
+                {
+                    "user_id": current_user.user_id,
+                    "completed": False,
+                    "skipped": False,
+                    "stage": 1,
+                    "started_at": datetime.now(timezone.utc).isoformat(),
+                    "preferences": {
+                        "genres": [],
+                        "favorite_movies": [],
+                        "mood_preferences": [],
+                        "time_preferences": [],
+                    },
+                },
+                86400,
+            )
+        except Exception:
+            pass
+        return {"message": "Onboarding reset", "onboarding_completed": False}
+    except Exception as e:
+        logger.error(f"Error resetting onboarding: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reset onboarding: {str(e)}"
+        )
+
 def _is_documentary(movie_data: dict) -> bool:
     """True if movie is a documentary (excluded from Surprise Me / random)."""
     genres = movie_data.get("genres") or []

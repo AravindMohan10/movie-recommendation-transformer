@@ -157,6 +157,26 @@ export async function completeOnboarding(onboardingData) {
   }
 }
 
+export async function resetOnboarding() {
+  try {
+    const token = localStorage.getItem('cineai_token');
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+    const res = await fetch(`${API_BASE}/recommendations/onboarding/reset`, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: JSON.stringify({}), // keep shape consistent
+    });
+    return handleResponse(res);
+  } catch (error) {
+    console.error('Reset onboarding error:', error);
+    throw error;
+  }
+}
+
 export async function updateOnboarding(onboardingData) {
   try {
     const token = localStorage.getItem('cineai_token');
