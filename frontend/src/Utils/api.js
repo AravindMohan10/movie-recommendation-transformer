@@ -236,6 +236,23 @@ export async function getSurpriseMe(limit = 5) {
   }
 }
 
+/**
+ * Prefetch key dashboard data right after login to make the first load seamless.
+ * Fires requests in parallel and never throws (best-effort warm cache).
+ */
+export async function prefetchDashboardData() {
+  try {
+    await Promise.allSettled([
+      getRecommendations(12),
+      getHiddenGems(15),
+      getSurpriseMe(10),
+      getOnboardingStatus(),
+    ]);
+  } catch {
+    // Intentionally swallow errors; this is a non-blocking warm-up.
+  }
+}
+
 export async function getWatchlist() {
   try {
     const token = localStorage.getItem('cineai_token');

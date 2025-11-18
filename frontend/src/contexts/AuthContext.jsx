@@ -1,6 +1,6 @@
 // src/contexts/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { getMe as apiGetMe, logout as apiLogout } from "../Utils/api";
+import { getMe as apiGetMe, logout as apiLogout, prefetchDashboardData } from "../Utils/api";
 
 const defaultAuth = {
   user: null,
@@ -37,6 +37,8 @@ export function AuthProvider({ children }) {
       const userData = await apiGetMe();
       setUser(userData);
       setIsAuthenticated(true);
+      // Warm up key data so dashboard loads instantly
+      prefetchDashboardData();
     } catch (error) {
       console.log('Authentication check failed:', error.message);
       setUser(null);
@@ -60,6 +62,7 @@ export function AuthProvider({ children }) {
     setUser(userData);
     setIsAuthenticated(true);
     setAuthError(null);
+    prefetchDashboardData();
   };
 
   const logout = async () => {
