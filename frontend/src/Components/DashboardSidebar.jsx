@@ -14,9 +14,8 @@ const DashboardSidebar = ({
         onClick={onToggle}
         whileHover={{ scale: 1.1, boxShadow: "0 0 20px rgba(1,255,233,0.4)" }}
         whileTap={{ scale: 0.95 }}
-        className={`fixed top-4 ${isOpen ? 'left-[260px]' : 'left-4'} z-[100] w-12 h-12 rounded-full backdrop-blur-xl bg-white/5 border border-teal-500/30 flex items-center justify-center text-teal-300 transition-all duration-300 shadow-lg`}
+        className="fixed top-4 left-4 z-[100] w-12 h-12 rounded-full backdrop-blur-xl bg-white/5 border border-teal-500/30 flex items-center justify-center text-teal-300 transition-all duration-300 shadow-lg"
         style={{ 
-          transition: 'left 0.3s ease',
           boxShadow: isOpen ? '0 0 20px rgba(1,255,233,0.2)' : '0 4px 12px rgba(0,0,0,0.3)'
         }}
       >
