@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -7,30 +8,35 @@ const DashboardSidebar = ({
   isOpen,
   onToggle 
 }) => {
+  // Render toggle button in a portal so it's never inside a transformed ancestor (stays fixed when scrolling)
+  const toggleButton = (
+    <motion.button
+      onClick={onToggle}
+      whileHover={{ scale: 1.1, boxShadow: "0 0 20px rgba(1,255,233,0.4)" }}
+      whileTap={{ scale: 0.95 }}
+      className="fixed top-4 left-4 z-[100] w-12 h-12 rounded-full backdrop-blur-xl bg-white/5 border border-teal-500/30 flex items-center justify-center text-teal-300 transition-all duration-300 shadow-lg"
+      style={{ 
+        boxShadow: isOpen ? '0 0 20px rgba(1,255,233,0.2)' : '0 4px 12px rgba(0,0,0,0.3)'
+      }}
+      aria-label={isOpen ? 'Close sidebar' : 'Open sidebar'}
+    >
+      <svg 
+        width="16" 
+        height="16" 
+        viewBox="0 0 24 24" 
+        fill="none" 
+        stroke="currentColor" 
+        strokeWidth="2"
+        className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+      >
+        <path d="M15 18l-6-6 6-6" />
+      </svg>
+    </motion.button>
+  );
+
   return (
     <>
-      {/* Toggle Button - Glassmorphism Style */}
-      <motion.button
-        onClick={onToggle}
-        whileHover={{ scale: 1.1, boxShadow: "0 0 20px rgba(1,255,233,0.4)" }}
-        whileTap={{ scale: 0.95 }}
-        className="fixed top-4 left-4 z-[100] w-12 h-12 rounded-full backdrop-blur-xl bg-white/5 border border-teal-500/30 flex items-center justify-center text-teal-300 transition-all duration-300 shadow-lg"
-        style={{ 
-          boxShadow: isOpen ? '0 0 20px rgba(1,255,233,0.2)' : '0 4px 12px rgba(0,0,0,0.3)'
-        }}
-      >
-        <svg 
-          width="16" 
-          height="16" 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
-          strokeWidth="2"
-          className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
-        >
-          <path d="M15 18l-6-6 6-6" />
-        </svg>
-      </motion.button>
+      {typeof document !== 'undefined' && createPortal(toggleButton, document.body)}
 
       {/* Sidebar - Glassmorphism Design */}
       <AnimatePresence>

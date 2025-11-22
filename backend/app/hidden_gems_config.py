@@ -14,11 +14,11 @@ logger = logging.getLogger(__name__)
 
 # Configurable via env (tune without code changes)
 # TMDB popularity: blockbusters can be 50–800+; keep max low so we get under-exposed titles
-HIDDEN_GEMS_MAX_POPULARITY = float(os.getenv("HIDDEN_GEMS_MAX_POPULARITY", "25.0"))
+HIDDEN_GEMS_MAX_POPULARITY = float(os.getenv("HIDDEN_GEMS_MAX_POPULARITY", "35.0"))
 # Exclude blockbusters: max vote_count so we don't show Inception/Star Wars–level titles
-HIDDEN_GEMS_MAX_VOTE_COUNT = int(os.getenv("HIDDEN_GEMS_MAX_VOTE_COUNT", "4000"))
-HIDDEN_GEMS_MIN_VOTE_COUNT = int(os.getenv("HIDDEN_GEMS_MIN_VOTE_COUNT", "100"))
-HIDDEN_GEMS_MIN_RATING = float(os.getenv("HIDDEN_GEMS_MIN_RATING", "7.0"))
+HIDDEN_GEMS_MAX_VOTE_COUNT = int(os.getenv("HIDDEN_GEMS_MAX_VOTE_COUNT", "6000"))
+HIDDEN_GEMS_MIN_VOTE_COUNT = int(os.getenv("HIDDEN_GEMS_MIN_VOTE_COUNT", "50"))
+HIDDEN_GEMS_MIN_RATING = float(os.getenv("HIDDEN_GEMS_MIN_RATING", "6.8"))
 # Cap popularity for normalization (TMDB can be 0–800+)
 HIDDEN_GEMS_POP_CAP = float(os.getenv("HIDDEN_GEMS_POP_CAP", "100.0"))
 # Vote count cap for "under-exposed" factor (lower votes = more hidden when rating is good)

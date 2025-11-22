@@ -446,9 +446,12 @@ export async function getRandomMovies(limit = 12) {
 
 /** Authenticated. Hidden gems: high quality, low popularity, serendipity-ranked. */
 export async function getHiddenGems(limit = 15) {
+  const token = localStorage.getItem("cineai_token");
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(`${API_BASE}/recommendations/hidden-gems?limit=${limit}`, {
     method: "GET",
     credentials: "include",
+    headers,
   });
   return handleResponse(res);
 }

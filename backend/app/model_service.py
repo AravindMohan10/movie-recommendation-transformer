@@ -37,7 +37,7 @@ logger.info(f"🔧 Cache Configuration: {'DEVELOPMENT' if DEV_MODE else 'PRODUCT
 USE_RAG_LLM_RERANK = os.getenv("USE_RAG_LLM_RERANK", "true").lower() in ("1", "true", "yes")
 
 # Bump this when poster/movie_data logic changes so cached recommendations are invalidated
-REC_CACHE_VERSION = "v2"
+REC_CACHE_VERSION = "v3"
 
 # Main recommendations: only movies from this year onward (older movies in "Classics" genre)
 MAIN_REC_MIN_YEAR = int(os.getenv("MAIN_REC_MIN_YEAR", "1980"))

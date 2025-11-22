@@ -66,6 +66,18 @@ def _get_onboarding_status_db(db: Session, user_id: int) -> Dict[str, Optional[o
     }
 
 
+def _sanitize_rec_poster(rec: dict) -> dict:
+    """Return a copy of rec with poster set to a title-based placeholder only (never use rec poster_path to avoid mismatches)."""
+    out = dict(rec)
+    movie_id = rec.get("movie_id") or rec.get("id")
+    title = (rec.get("title") or f"Movie {movie_id}")[:20].replace(" ", "+")
+    placeholder = f"https://via.placeholder.com/342x513/1a1a1a/666666?text={title}"
+    out["poster_path"] = placeholder
+    out["poster_url"] = placeholder
+    out["image"] = placeholder
+    return out
+
+
 def _upsert_onboarding_status(
     db: Session,
     user_id: int,
@@ -294,12 +306,12 @@ async def get_recommendations(
                 enriched_recommendations.append(enriched_rec)
             except Exception as enrich_error:
                 logger.warning(f"Failed to enrich recommendation {rec.get('movie_id', 'unknown')}: {enrich_error}")
-                # Add unenriched recommendation as fallback
-                enriched_recommendations.append(rec)
+                # Append sanitized rec (placeholder poster only) so we never surface wrong posters
+                enriched_recommendations.append(_sanitize_rec_poster(rec))
         
         if not enriched_recommendations and recommendations:
-            # If enrichment failed but we have recommendations, return them as-is
-            enriched_recommendations = recommendations
+            # Sanitize posters so we never return wrong poster_path from cache
+            enriched_recommendations = [_sanitize_rec_poster(r) for r in recommendations]
         
         # Determine if using model or fallback
         is_model_recommendations = (
@@ -963,6 +975,13 @@ async def get_hidden_gems(
         pool.sort(key=lambda x: -x[2])
         recs = []
         for mid_int, m, score in pool[:limit]:
+            pp = m.get("poster_path")
+            if pp and str(pp).strip() and str(pp) != "None":
+                pp = str(pp).strip()
+                poster_url = pp if pp.startswith("http") else f"https://image.tmdb.org/t/p/w342{pp}" if pp.startswith("/") else f"https://image.tmdb.org/t/p/w342/{pp}"
+            else:
+                title_safe = (m.get("title") or "Movie")[:20].replace(" ", "+")
+                poster_url = f"https://via.placeholder.com/342x513/1a1a1a/666666?text={title_safe}"
             recs.append({
                 "movie_id": mid_int,
                 "title": m.get("title", "Unknown"),
@@ -972,6 +991,7 @@ async def get_hidden_gems(
                 "popularity": m.get("popularity", 0),
                 "serendipity_score": round(score, 4),
                 "poster_path": m.get("poster_path"),
+                "poster_url": poster_url,
                 "explanation": None,
                 "confidence": None,
             })
