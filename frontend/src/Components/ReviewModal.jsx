@@ -34,7 +34,7 @@ const ReviewModal = ({ isOpen, onClose, movie, existingReview, onSubmit }) => {
   const imgSrc = posterUrl?.startsWith("http")
     ? posterUrl
     : posterUrl
-      ? `https://image.tmdb.org/t/p/w342${posterUrl}`
+      ? `https://image.tmdb.org/t/p/w342${posterUrl.startsWith("/") ? posterUrl : `/${posterUrl}`}`
       : `https://via.placeholder.com/342x513/1a1a1a/666?text=No+Poster`;
 
   return (

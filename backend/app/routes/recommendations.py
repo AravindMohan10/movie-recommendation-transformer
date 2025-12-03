@@ -105,7 +105,8 @@ def _upsert_onboarding_status(
     db.refresh(row)
     return row
 
-@router.get("/")
+@router.get("", response_model=None)
+@router.get("/", response_model=None)
 @limiter.limit("60/minute")
 async def get_recommendations(
     request: Request,
@@ -114,7 +115,7 @@ async def get_recommendations(
     limit: int = 10,
     force_refresh: bool = True
 ):
-    """Get personalized movie recommendations for the current user with progressive enhancement"""
+    """Get personalized movie recommendations for the current user with progressive enhancement. Registered for '' and '/' so GET /api/recommendations (no trailing slash) works."""
     try:
         from ..models import UserInteraction
         

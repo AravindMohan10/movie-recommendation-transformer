@@ -1,4 +1,5 @@
 # app/main.py
+import asyncio
 import logging
 import os
 import uuid
@@ -93,19 +94,15 @@ if ENV != "production":
     except Exception as e:
         logger.warning("Debug router not available: %s", e)
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services on startup"""
+async def _background_startup():
+    """Run heavy init after the app has bound to port so Fly.io proxy can connect quickly."""
     try:
-        # Create database tables if they don't exist
         from .database import Base, engine
         from .models import User, UserInteraction, Watchlist, PasswordResetToken, NewsArticle, OnboardingStatus
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables initialized (Users, UserInteractions, Watchlist, PasswordResetToken, NewsArticle, OnboardingStatus)")
     except Exception as e:
         logger.exception("Database initialization error: %s", e)
-        # Don't raise: allow app to bind so new deploys can serve (DB may work on first request)
-
     try:
         import sys
         from pathlib import Path
@@ -120,12 +117,18 @@ async def startup_event():
             logger.warning("Monitoring initialization: %s", e)
     except Exception as e:
         logger.warning("Monitoring setup: %s", e)
-
     try:
         retraining_service.start_scheduled_retraining()
         logger.info("Model retraining scheduler started")
     except Exception as e:
         logger.warning("Retraining scheduler: %s", e)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Bind to port quickly so Fly.io proxy can reach 0.0.0.0:8080; run heavy init in background."""
+    asyncio.create_task(_background_startup())
+
 
 @app.get("/")
 @limiter.exempt

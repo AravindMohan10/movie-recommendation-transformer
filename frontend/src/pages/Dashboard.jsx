@@ -264,6 +264,7 @@ export default function Dashboard() {
         });
         if (avgPct >= 70) setConfidenceLabel("High confidence");
         else if (avgPct >= 50) setConfidenceLabel("Mixed confidence");
+        else if (data.model_source === "fallback") setConfidenceLabel("Popular picks");
         else setConfidenceLabel("Limited data");
       } else {
         setConfidenceLabel("—");
@@ -1054,9 +1055,9 @@ export default function Dashboard() {
               {selectedGenre == null && (
                 <div
                   className="hidden md:flex items-center gap-3 px-4 py-2 bg-black/70 border border-teal-700 rounded-lg"
-                  title={confidenceLabel === "High confidence" ? "Most recommendations have high confidence from similar users or review similarity." : confidenceLabel === "Limited data" ? "Based on limited interaction data; like or review more for better picks." : "Confidence varies across recommendations."}
+                  title={confidenceLabel === "High confidence" ? "Most recommendations have high confidence from similar users or review similarity." : confidenceLabel === "Popular picks" ? "Showing popular and highly rated movies. Like or review more for personalized picks." : confidenceLabel === "Limited data" ? "Based on limited interaction data; like or review more for better picks." : "Confidence varies across recommendations."}
                 >
-                  <div className={`w-2 h-2 rounded-full animate-pulse ${confidenceLabel === "High confidence" ? "bg-teal-400" : confidenceLabel === "Limited data" ? "bg-slate-400" : "bg-amber-400"}`} />
+                  <div className={`w-2 h-2 rounded-full animate-pulse ${confidenceLabel === "High confidence" ? "bg-teal-400" : confidenceLabel === "Popular picks" ? "bg-amber-400" : confidenceLabel === "Limited data" ? "bg-slate-400" : "bg-amber-400"}`} />
                   <span className="text-teal-200 text-sm font-light tracking-wide">{confidenceLabel}</span>
                 </div>
               )}

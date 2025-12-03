@@ -10,9 +10,8 @@ COPY monitor_recommendations.py /app/backend/
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r /app/backend/requirements-docker.txt
 
-# Checkpoints and data (minimal set; large files excluded via .dockerignore)
-COPY Checkpoints /app/backend/Checkpoints
-COPY data /app/backend/data
+# Checkpoints and data: model_service uses BASE_DIR=/app (parent of backend), so put Checkpoints and data under /app
+COPY Checkpoints /app/Checkpoints
 COPY data /app/data
 
 WORKDIR /app/backend

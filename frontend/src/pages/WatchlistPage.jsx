@@ -37,9 +37,10 @@ export default function WatchlistPage() {
   };
 
   const posterUrl = (r) => {
+    if (r.poster_url) return r.poster_url;
     const p = r.poster_path;
     if (!p) return `https://via.placeholder.com/92x138/1a1a1a/666?text=No+Poster`;
-    return p.startsWith("http") ? p : `https://image.tmdb.org/t/p/w92${p}`;
+    return p.startsWith("http") ? p : `https://image.tmdb.org/t/p/w92${p.startsWith("/") ? p : `/${p}`}`;
   };
 
   if (authLoading || !isAuthenticated || !user) {

@@ -5,9 +5,10 @@ import { searchMovies } from "../Utils/api";
 const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 
 function posterUrl(m) {
+  if (m.poster_url) return m.poster_url;
   const p = m.poster_path;
   if (!p) return "https://via.placeholder.com/48x72/1a1a1a/666?text=No+Poster";
-  return p.startsWith("http") ? p : `https://image.tmdb.org/t/p/w92${p}`;
+  return p.startsWith("http") ? p : `https://image.tmdb.org/t/p/w92${p.startsWith("/") ? p : `/${p}`}`;
 }
 
 function authHeaders() {

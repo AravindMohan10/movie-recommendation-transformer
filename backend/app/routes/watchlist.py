@@ -100,6 +100,7 @@ async def remove_from_watchlist(
             detail=f"Failed to remove from watchlist: {str(e)}"
         )
 
+@router.get("")
 @router.get("/")
 @limiter.limit("60/minute")
 async def get_watchlist(
@@ -118,11 +119,18 @@ async def get_watchlist(
         out = []
         for item in watchlist_items:
             md = model.movie_data.get(str(item.movie_id)) or model.movie_data.get(item.movie_id)
+            pp = (md or {}).get("poster_path")
+            if pp and str(pp).strip() and str(pp) != "None":
+                pp = str(pp).strip()
+                poster_url = pp if pp.startswith("http") else f"https://image.tmdb.org/t/p/w342{pp}" if pp.startswith("/") else f"https://image.tmdb.org/t/p/w342/{pp}"
+            else:
+                poster_url = None
             out.append({
                 "id": item.id,
                 "movie_id": item.movie_id,
                 "movie_title": (md or {}).get("title", f"Movie {item.movie_id}"),
                 "poster_path": (md or {}).get("poster_path"),
+                "poster_url": poster_url,
                 "added_at": item.added_at.isoformat() if item.added_at else None,
             })
         return {"watchlist": out, "total": len(out)}

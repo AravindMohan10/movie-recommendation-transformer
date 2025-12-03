@@ -21,10 +21,11 @@ export default function ShareMoviePage() {
       .finally(() => setLoading(false));
   }, [movieId]);
 
-  const posterUrl = movie?.poster_path
-    ? (movie.poster_path.startsWith("http")
-        ? movie.poster_path
-        : `https://image.tmdb.org/t/p/w342${movie.poster_path}`)
+  const posterUrl = movie?.poster_url ?? movie?.poster_path;
+  const imgSrc = posterUrl
+    ? (posterUrl.startsWith("http")
+        ? posterUrl
+        : `https://image.tmdb.org/t/p/w342${posterUrl.startsWith("/") ? posterUrl : `/${posterUrl}`}`)
     : `https://via.placeholder.com/342x513/1a1a1a/666?text=No+Poster`;
 
   return (
@@ -49,7 +50,7 @@ export default function ShareMoviePage() {
           <p className="text-gray-400 text-sm mb-6">Recommended for you</p>
           <div className="max-w-sm w-full rounded-2xl overflow-hidden border border-teal-500/30 bg-white/5">
             <img
-              src={posterUrl}
+              src={imgSrc}
               alt={movie.title}
               className="w-full aspect-[2/3] object-cover"
             />
