@@ -94,8 +94,8 @@ if ENV != "production":
     except Exception as e:
         logger.warning("Debug router not available: %s", e)
 
-async def _background_startup():
-    """Run heavy init after the app has bound to port so Fly.io proxy can connect quickly."""
+def _sync_startup():
+    """Blocking init: run in a thread so the event loop is not blocked and uvicorn can bind to 8080 immediately."""
     try:
         from .database import Base, engine
         from .models import User, UserInteraction, Watchlist, PasswordResetToken, NewsArticle, OnboardingStatus
@@ -126,8 +126,9 @@ async def _background_startup():
 
 @app.on_event("startup")
 async def startup_event():
-    """Bind to port quickly so Fly.io proxy can reach 0.0.0.0:8080; run heavy init in background."""
-    asyncio.create_task(_background_startup())
+    """Return immediately so uvicorn binds to 0.0.0.0:8080; run blocking init in a thread (not same event loop)."""
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, _sync_startup)
 
 
 @app.get("/")
