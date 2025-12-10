@@ -5,6 +5,7 @@ WORKDIR /app
 
 # Backend code and deps
 COPY backend /app/backend
+COPY models /app/models
 COPY monitor_recommendations.py /app/backend/
 # CPU-only PyTorch to keep image under Fly's 8GB limit
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
