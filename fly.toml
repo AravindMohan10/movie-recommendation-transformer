@@ -8,6 +8,12 @@ primary_region = 'ewr'
 
 [build]
 
+[env]
+  # CORS: allow Vercel frontend + local dev. Override with: fly secrets set ALLOWED_ORIGINS="..."
+  ALLOWED_ORIGINS = "https://cineai-flame.vercel.app,http://localhost:5173,http://localhost:3000"
+  # SQLite on persistent volume (must match [mounts] destination)
+  DATABASE_PATH = "/data/cineai.db"
+
 [http_service]
   internal_port = 8080
   force_https = true
@@ -23,7 +29,7 @@ primary_region = 'ewr'
   destination = "/data"
 
 [[vm]]
-  memory = '1gb'
+  memory = '2gb'
   cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 1024
+  memory_mb = 2048

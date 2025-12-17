@@ -29,9 +29,11 @@ if LIMITER_AVAILABLE:
 else:
     logger.warning("slowapi not installed: rate limiting disabled. Install with: pip install slowapi")
 
-# CORS: use ALLOWED_ORIGINS env (comma-separated) or default to localhost
-_origins_raw = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000")
+# CORS: use ALLOWED_ORIGINS env (comma-separated). Default includes production Vercel + localhost.
+_DEFAULT_ORIGINS = "https://cineai-flame.vercel.app,http://localhost:5173,http://localhost:3000"
+_origins_raw = os.getenv("ALLOWED_ORIGINS", _DEFAULT_ORIGINS)
 ALLOWED_ORIGINS = [x.strip() for x in _origins_raw.split(",") if x.strip()]
+logger.info("CORS allowed_origins: %s", ALLOWED_ORIGINS)
 # CORS middleware must be added BEFORE other middleware that might intercept requests
 app.add_middleware(
     CORSMiddleware,

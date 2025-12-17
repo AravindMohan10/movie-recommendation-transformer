@@ -40,7 +40,7 @@ In `fly.toml` add:
   destination = "/data"
 ```
 
-Set the app’s SQLite path via a secret: `fly secrets set DATABASE_PATH=/data/cineai.db`. The backend reads `DATABASE_PATH` and uses it when set.
+The repo’s `fly.toml` sets `DATABASE_PATH=/data/cineai.db` in `[env]` so the backend uses the volume. Ensure the volume exists (see above); no secret needed for `DATABASE_PATH` unless you override it.
 
 ### 1.4 Set secrets (env) on Fly
 
@@ -49,7 +49,6 @@ Do **not** put secrets in `fly.toml`. Use:
 ```bash
 fly secrets set SECRET_KEY="your-long-random-secret"
 fly secrets set ENV=production
-fly secrets set ALLOWED_ORIGINS="https://your-app.vercel.app"
 fly secrets set GROQ_API_KEY="your-groq-key"
 fly secrets set TMDB_API_KEY="your-tmdb-key"
 # If you use Resend for email:
@@ -62,7 +61,7 @@ Generate a safe `SECRET_KEY` with:
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-Use your **real** Vercel frontend URL for `ALLOWED_ORIGINS` (no trailing slash). After you deploy the frontend (Part 2), come back and set it if you haven’t yet.
+**CORS:** `fly.toml` already sets `ALLOWED_ORIGINS` to `https://cineai-flame.vercel.app` plus localhost. If your frontend URL is different, set: `fly secrets set ALLOWED_ORIGINS="https://your-app.vercel.app"` (secrets override `fly.toml` [env]).
 
 ### 1.5 Deploy
 
@@ -121,27 +120,34 @@ Save. Redeploy the project (Deployments → … → Redeploy) so the build picks
 
 Trigger a deploy (e.g. push to `main` or click **Deploy** in Vercel). When it’s done, Vercel gives you a URL like `https://your-project.vercel.app`. That’s your **frontend URL**.
 
-### 2.5 Point backend CORS at the frontend
+### 2.5 CORS (already in fly.toml)
 
-Back on Fly, set the frontend URL as the only allowed origin (or comma-separated list):
-
-```bash
-fly secrets set ALLOWED_ORIGINS="https://your-project.vercel.app"
-```
-
-Redeploy the backend if needed: `fly deploy` from the project root.
+`fly.toml` [env] sets `ALLOWED_ORIGINS` to `https://cineai-flame.vercel.app` and localhost. If your Vercel URL is different, run `fly secrets set ALLOWED_ORIGINS="https://your-project.vercel.app"` and redeploy.
 
 ---
 
-## Part 3: Quick checklist
+## Part 3: Troubleshooting
+
+### "Origin … is not allowed by Access-Control-Allow-Origin" or 502
+
+- **CORS:** Ensure your Vercel frontend URL is in `ALLOWED_ORIGINS`. It’s set in `fly.toml` [env]; override with `fly secrets set ALLOWED_ORIGINS="https://your-app.vercel.app"`.
+- **502:** The proxy got no valid response from the app. Check `fly logs` for crashes (e.g. `ModuleNotFoundError`, DB errors). Ensure the Fly volume exists (`fly volumes list`) and the app has `DATABASE_PATH=/data/cineai.db` (already in `fly.toml`). Redeploy with `fly deploy --no-cache` after changing the Dockerfile (e.g. `COPY models`).
+
+### Genres / onboarding / only fallback recommendations
+
+- Genre chips and onboarding status come from the API; if those requests fail (CORS or 502), the UI falls back (no chips, show onboarding). Fix CORS and 502 first.
+- If you still see only "Popular picks", the recommendation model isn’t loading on Fly. Ensure the Dockerfile includes `COPY models /app/models` and redeploy.
+
+---
+
+## Part 4: Quick checklist
 
 - [ ] Fly CLI installed, `fly auth login` done.
-- [ ] Dockerfile and `fly.toml` at project root (and volume if using SQLite).
-- [ ] Fly secrets set: `SECRET_KEY`, `ENV=production`, `ALLOWED_ORIGINS`, `GROQ_API_KEY`, `TMDB_API_KEY`, etc.
+- [ ] Dockerfile and `fly.toml` at project root; volume created and mounted (see 1.3).
+- [ ] Fly secrets set: `SECRET_KEY`, `ENV=production`, `GROQ_API_KEY`, `TMDB_API_KEY`, etc. (`ALLOWED_ORIGINS` and `DATABASE_PATH` are in `fly.toml`.)
 - [ ] `fly deploy` from project root; backend URL works and `/health` and `/ready` return 200.
 - [ ] Repo on GitHub; Vercel project created with root `frontend`.
-- [ ] `VITE_API_BASE` set in Vercel to your Fly API URL.
+- [ ] `VITE_API_BASE` set in Vercel to your Fly API URL (e.g. `https://movie-recommendation-transformer.fly.dev/api`).
 - [ ] Frontend deployed; you can open the app and see recommendations (after login/setup).
-- [ ] `ALLOWED_ORIGINS` on Fly set to your Vercel frontend URL.
 
 If something fails, check Fly logs: `fly logs`, and Vercel build logs in the dashboard.
