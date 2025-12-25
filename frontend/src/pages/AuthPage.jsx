@@ -1,7 +1,7 @@
 // src/pages/AuthPage.jsx
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { login, signup, getMe } from "../Utils/api";
+import { login, signup, getMe, wakeBackend } from "../Utils/api";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import CinematicBackdrop from "../Components/CinematicBackdrop";
@@ -17,6 +17,7 @@ export default function AuthPage() {
     confirmPassword: "",
   });
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Please wait...");
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
@@ -27,6 +28,11 @@ export default function AuthPage() {
     }
   }, [user, authLoading, navigate]);
 
+  // Wake backend on mount so it's ready by the time user submits (cold start ~60s)
+  useEffect(() => {
+    wakeBackend();
+  }, []);
+
   const handleChange = (e) =>
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
@@ -34,7 +40,10 @@ export default function AuthPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-
+    setLoadingMessage("Please wait...");
+    const msgTimer = setTimeout(() => {
+      setLoadingMessage("Waking up servers... first login may take up to a minute");
+    }, 8000);
     try {
       if (mode === "signup") {
         if (!form.username || !form.email || !form.password)
@@ -89,6 +98,7 @@ export default function AuthPage() {
         setError(err.message || "Something went wrong.");
       }
     } finally {
+      clearTimeout(msgTimer);
       setLoading(false);
     }
   };
@@ -281,9 +291,11 @@ export default function AuthPage() {
               }}
             >
               {loading ? (
-                <div className="flex items-center justify-center">
-                  <div className="w-5 h-5 border-2 border-gray-900 border-t-transparent rounded-full animate-spin mr-2"></div>
-                  Please wait...
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <div className="flex items-center">
+                    <div className="w-5 h-5 border-2 border-gray-900 border-t-transparent rounded-full animate-spin mr-2"></div>
+                    {loadingMessage}
+                  </div>
                 </div>
               ) : (
                 mode === "login" ? "Sign In" : "Create Account"

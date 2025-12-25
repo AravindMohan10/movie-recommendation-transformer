@@ -1,6 +1,18 @@
 // src/Utils/api.js
 const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 
+// Base URL without /api (for /health, etc.)
+const API_ORIGIN = API_BASE.replace(/\/api\/?$/, "") || (typeof window !== "undefined" ? window.location.origin : "");
+
+/**
+ * Wake up the backend (e.g. Fly.io cold start). Call when user lands on login page
+ * so the server is warming up while they type. Fire-and-forget.
+ */
+export function wakeBackend() {
+  const url = API_ORIGIN ? `${API_ORIGIN}/health` : "/health";
+  fetch(url, { method: "GET", credentials: "include" }).catch(() => {});
+}
+
 // Helper function to handle API responses
 async function handleResponse(response) {
   if (!response.ok) {
