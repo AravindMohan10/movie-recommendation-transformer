@@ -53,10 +53,29 @@ class MovieRecommendationModel:
         """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        # Determine model path
+        # Determine model path - check persistent volume first, then bundled path
         if model_path is None:
+            # Priority 1: Persistent volume (survives deploys, can upload large files here)
+            volume_path = Path("/data/Checkpoints/recommendation_engine")
+            # Priority 2: Bundled in Docker image
             BASE_DIR = Path(__file__).parent.parent.parent
-            model_path = BASE_DIR / "Checkpoints" / "recommendation_engine"
+            bundled_path = BASE_DIR / "Checkpoints" / "recommendation_engine"
+            
+            # Check which path has the actual model files (not just LFS pointers)
+            # Prefer volume if .npz exists there (bundled image has no .npz)
+            volume_npz = Path(f"{volume_path}_content_embeddings.npz")
+            volume_ensemble = Path(f"{volume_path}_ensemble.json")
+            bundled_ensemble = Path(f"{bundled_path}_ensemble.json")
+
+            if volume_npz.exists() or volume_ensemble.exists():
+                model_path = volume_path
+                logger.info(f"📦 Using model from persistent volume: {volume_path}")
+            elif bundled_ensemble.exists():
+                model_path = bundled_path
+                logger.info(f"📦 Using bundled model: {bundled_path}")
+            else:
+                model_path = bundled_path  # Will fail gracefully in _load_model
+                logger.warning(f"⚠️ No model found at {volume_path} or {bundled_path}")
         self.model_path = Path(model_path)
         
         # Redis setup (optional)

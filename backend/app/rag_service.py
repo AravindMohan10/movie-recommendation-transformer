@@ -38,7 +38,10 @@ class RAGService:
         self._collection: Any = None
         self._movie_embeddings: Dict[int, Any] = {}
         self._base_dir = Path(__file__).resolve().parent.parent.parent
-        self._chroma_path = self._base_dir / "data" / "rag" / "chroma_db"
+        # Use persistent volume when available (survives deploys, prebuilt index can be uploaded)
+        volume_rag = Path("/data/rag/chroma_db")
+        bundled_rag = self._base_dir / "data" / "rag" / "chroma_db"
+        self._chroma_path = volume_rag if Path("/data").exists() else bundled_rag
         self._index_built = False
 
     def _ensure_embedder(self) -> None:
@@ -170,9 +173,9 @@ class RAGService:
         return True
 
     def _ensure_index(self) -> bool:
+        """Return True if index is ready. Never block on build_index() during requests (would take 10-30 min)."""
         if self._index_built and self._collection is not None:
             return True
-        self._ensure_embedder()
         self._ensure_chroma()
         try:
             self._collection = self._chroma_client.get_or_create_collection(
@@ -182,18 +185,21 @@ class RAGService:
             if self._collection.count() > 0:
                 self._index_built = True
                 return True
-        except Exception:
-            pass
-        return self.build_index()
+        except Exception as e:
+            logger.debug("RAG: _ensure_index chroma check failed: %s", e)
+        # Index empty or missing: do NOT build during request (would block 10-30 min on CPU).
+        # Use CF-only recommendations. Build index separately via: scripts/build_rag_index.py
+        logger.info("RAG: index empty or missing, skipping RAG (using CF-only). Build via scripts/build_rag_index.py")
+        return False
 
     def retrieve_similar(
         self, query: str, top_k: int = 50
     ) -> List[Tuple[int, float, str]]:
         """Returns [(movie_id, score, text), ...]. Score in [0,1]-like similarity."""
-        self._ensure_embedder()
         self._ensure_chroma()
         if not self._ensure_index():
             return []
+        self._ensure_embedder()
         try:
             q_emb = self._embedder.encode([query])
             n = min(top_k, self._collection.count())
@@ -246,7 +252,8 @@ class RAGService:
 
     def get_document_for_movie(self, movie_id: int) -> Optional[str]:
         """Return the single RAG document (overview + reviews) for this movie, or None if not in index."""
-        if not self._ensure_chroma() or not self._ensure_index():
+        self._ensure_chroma()
+        if not self._ensure_index():
             return None
         try:
             res = self._collection.get(

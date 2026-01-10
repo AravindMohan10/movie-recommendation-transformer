@@ -134,6 +134,7 @@ export default function MovieSearch({ onLike, onWatchlist, isInWatchlist }) {
                       src={posterUrl(m)}
                       alt=""
                       className="w-10 h-14 object-cover rounded flex-shrink-0"
+                      onError={(e) => { e.target.onerror = null; e.target.src = "https://via.placeholder.com/40x56/1a1a1a/666666?text=No+Poster"; }}
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-medium truncate">{m.title}</p>

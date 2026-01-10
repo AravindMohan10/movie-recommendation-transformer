@@ -9,7 +9,7 @@ const fallbackPosters = [
   "https://image.tmdb.org/t/p/w300/8UlWHLMpgZm9bx6QYh0NFoq67TZ.jpg",
   "https://image.tmdb.org/t/p/w300/q719jXXEzOoYaps6babgKnONONX.jpg",
   "https://image.tmdb.org/t/p/w300/6KErczPBROQty7QoIsaa6wJYXZi.jpg",
-  "https://image.tmdb.org/t/p/w300/hTExot1sfn7dHZjGrk0AiwpNTkp.jpg",
+  "https://image.tmdb.org/t/p/w300/2CAL2433ZeIihfX1Hb2139CX0pW.jpg",
   "https://image.tmdb.org/t/p/w300/xBHvZcjRiWyobQ9kxBhO6B2dtRI.jpg",
 ];
 
@@ -163,7 +163,7 @@ export default function LandingPage() {
                   key={idx}
                   src={src}
                   alt="Movie poster"
-                  onError={(e) => (e.currentTarget.style.display = "none")}
+                  onError={(e) => { e.target.onerror = null; e.target.src = "https://via.placeholder.com/160x240/1a1a1a/666666?text=Movie"; }}
                   className="w-40 h-60 object-cover rounded-lg shadow-xl"
                 />
               ))}

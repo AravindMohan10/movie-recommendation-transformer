@@ -108,6 +108,7 @@ export default function WatchlistPage() {
                   src={posterUrl(w)}
                   alt={w.movie_title}
                   className="w-[92px] h-[138px] object-cover rounded-lg flex-shrink-0"
+                  onError={(e) => { e.target.onerror = null; e.target.src = "https://via.placeholder.com/92x138/1a1a1a/666666?text=No+Poster"; }}
                 />
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-white truncate">{w.movie_title}</h3>

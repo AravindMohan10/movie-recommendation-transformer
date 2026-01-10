@@ -80,6 +80,7 @@ const ReviewModal = ({ isOpen, onClose, movie, existingReview, onSubmit }) => {
                 src={imgSrc}
                 alt={movie?.title}
                 className="w-24 h-36 object-cover rounded-lg"
+                onError={(e) => { e.target.onerror = null; e.target.src = "https://via.placeholder.com/96x144/1a1a1a/666666?text=No+Poster"; }}
               />
               <form onSubmit={handleSubmit} className="flex-1 flex flex-col gap-4">
                 <div>

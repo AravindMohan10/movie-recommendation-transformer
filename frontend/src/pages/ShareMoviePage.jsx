@@ -53,6 +53,7 @@ export default function ShareMoviePage() {
               src={imgSrc}
               alt={movie.title}
               className="w-full aspect-[2/3] object-cover"
+              onError={(e) => { e.target.onerror = null; e.target.src = "https://via.placeholder.com/342x513/1a1a1a/666666?text=No+Poster"; }}
             />
             <div className="p-4">
               <h1 className="text-xl font-semibold text-white">{movie.title}</h1>

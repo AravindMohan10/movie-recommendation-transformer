@@ -21,8 +21,8 @@ primary_region = 'ewr'
   auto_start_machines = true
   min_machines_running = 0
   processes = ['app']
-  # Wait longer for app to bind (heavy init runs in background so bind is fast; extra margin for cold start)
-  grace_period = "30s"
+  # Wait longer for app to bind (Python imports + DB init take ~15-20s on cold start)
+  grace_period = "60s"
 
 [mounts]
   source = "cineai_data"

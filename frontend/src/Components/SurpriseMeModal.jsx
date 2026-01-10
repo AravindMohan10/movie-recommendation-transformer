@@ -125,6 +125,7 @@ const SurpriseMeModal = ({ isOpen, onClose, movies, loading, onLike, onDislike, 
                             alt={currentMovie.title}
                             className="w-full md:w-64 h-auto rounded-xl"
                             style={{ maxHeight: '400px', objectFit: 'cover' }}
+                            onError={(e) => { e.target.onerror = null; e.target.src = "https://via.placeholder.com/256x384/1a1a1a/666666?text=No+Poster"; }}
                           />
                           {/* Poster overlay effect matching gallery */}
                           <div 

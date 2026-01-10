@@ -136,7 +136,12 @@ Trigger a deploy (e.g. push to `main` or click **Deploy** in Vercel). When it’
 ### Genres / onboarding / only fallback recommendations
 
 - Genre chips and onboarding status come from the API; if those requests fail (CORS or 502), the UI falls back (no chips, show onboarding). Fix CORS and 502 first.
-- If you still see only "Popular picks", the recommendation model isn’t loading on Fly. Ensure the Dockerfile includes `COPY models /app/models` and redeploy.
+- If you still see only "Popular picks", the recommendation model isn’t loading on Fly. Upload model files to `/data/Checkpoints/` via `fly sftp shell`. The code prefers the volume path when `.npz` files exist there.
+
+### Recommendations loading forever (3+ minutes)
+
+- Previously, RAG would rebuild its Chroma index on first request (10–30 min on CPU). Now the app skips RAG when the index is empty and returns CF-only recommendations within seconds.
+- RAG index lives at `/data/rag/chroma_db`. To enable full CF+RAG, build the index locally and upload to the volume via SFTP, or run `python scripts/build_rag_index.py` inside a Fly SSH session.
 
 ---
 
