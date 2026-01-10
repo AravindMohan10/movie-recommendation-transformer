@@ -5,10 +5,15 @@ from typing import List, Dict
 from ..database import get_db
 from ..models import User, Watchlist
 from ..auth import get_current_user
-from ..model_service import get_model_service
 from ..limiter import limiter
 
 router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
+
+
+def _get_model():
+    """Lazy load model_service (defers torch import until first use)."""
+    from ..model_service import get_model_service
+    return _get_model()
 
 @router.post("/add")
 @limiter.limit("60/minute")
@@ -115,7 +120,7 @@ async def get_watchlist(
             Watchlist.user_id == current_user.user_id
         ).order_by(Watchlist.added_at.desc()).limit(limit).all()
         
-        model = get_model_service()
+        model = _get_model()
         out = []
         for item in watchlist_items:
             md = model.movie_data.get(str(item.movie_id)) or model.movie_data.get(item.movie_id)

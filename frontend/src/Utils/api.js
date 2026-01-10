@@ -4,6 +4,27 @@ const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 // Base URL without /api (for /health, etc.)
 const API_ORIGIN = API_BASE.replace(/\/api\/?$/, "") || (typeof window !== "undefined" ? window.location.origin : "");
 
+/** Retry fetch on 502/503/network failure (cold start). Max 3 attempts, exponential backoff. */
+async function fetchWithRetry(url, opts = {}, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, opts);
+      if ((res.status === 502 || res.status === 503) && i < retries - 1) {
+        await new Promise((r) => setTimeout(r, Math.pow(2, i) * 1000));
+        continue;
+      }
+      return res;
+    } catch (e) {
+      if ((e.message?.includes("Failed to fetch") || e.name === "TypeError") && i < retries - 1) {
+        await new Promise((r) => setTimeout(r, Math.pow(2, i) * 1000));
+        continue;
+      }
+      throw e;
+    }
+  }
+  return fetch(url, opts);
+}
+
 /**
  * Wake up the backend (e.g. Fly.io cold start). Call when user lands on login page
  * so the server is warming up while they type. Fire-and-forget.
@@ -34,7 +55,7 @@ async function handleResponse(response) {
 
 export async function signup({ username, email, password }) {
   try {
-    const res = await fetch(`${API_BASE}/signup`, {
+    const res = await fetchWithRetry(`${API_BASE}/signup`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -60,7 +81,7 @@ export async function login(usernameOrEmail, password) {
     form.append("username", usernameOrEmail);
     form.append("password", password);
 
-    const res = await fetch(`${API_BASE}/login`, {
+    const res = await fetchWithRetry(`${API_BASE}/login`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -92,7 +113,7 @@ export async function getMe() {
       'Authorization': `Bearer ${token}`,
     };
 
-    const res = await fetch(`${API_BASE}/me`, {
+    const res = await fetchWithRetry(`${API_BASE}/me`, {
       method: "GET",
       credentials: "include",
       headers,
@@ -136,7 +157,7 @@ export async function getOnboardingStatus() {
       'Authorization': `Bearer ${token}`,
     };
 
-    const res = await fetch(`${API_BASE}/recommendations/onboarding/status`, {
+    const res = await fetchWithRetry(`${API_BASE}/recommendations/onboarding/status`, {
       method: "GET",
       credentials: "include",
       headers,
@@ -217,7 +238,7 @@ export async function getRecommendations(limit = 10) {
       'Authorization': `Bearer ${token}`,
     };
 
-    const res = await fetch(`${API_BASE}/recommendations?limit=${limit}`, {
+    const res = await fetchWithRetry(`${API_BASE}/recommendations?limit=${limit}`, {
       method: "GET",
       credentials: "include",
       headers,
@@ -236,7 +257,7 @@ export async function getSurpriseMe(limit = 5) {
     const headers = {
       'Authorization': `Bearer ${token}`,
     };
-    const res = await fetch(`${API_BASE}/recommendations/surprise-me?limit=${limit}`, {
+    const res = await fetchWithRetry(`${API_BASE}/recommendations/surprise-me?limit=${limit}`, {
       method: "GET",
       credentials: "include",
       headers,
@@ -272,7 +293,7 @@ export async function getWatchlist() {
       'Authorization': `Bearer ${token}`,
     };
 
-    const res = await fetch(`${API_BASE}/watchlist`, {
+    const res = await fetchWithRetry(`${API_BASE}/watchlist`, {
       method: "GET",
       credentials: "include",
       headers,
@@ -420,7 +441,7 @@ export async function getMovieById(movieId) {
 
 /** Public: list of genre names for browse-by-genre. No auth. */
 export async function getGenres() {
-  const res = await fetch(`${API_BASE}/movies/genres`, {
+  const res = await fetchWithRetry(`${API_BASE}/movies/genres`, {
     method: "GET",
     credentials: "include",
   });
@@ -447,7 +468,7 @@ export async function searchMovies(query) {
 
 /** Public. Truly random good movies (no docs) for landing page. */
 export async function getRandomMovies(limit = 12) {
-  const res = await fetch(`${API_BASE}/movies/random?limit=${limit}`, {
+  const res = await fetchWithRetry(`${API_BASE}/movies/random?limit=${limit}`, {
     method: "GET",
     credentials: "include",
   });
@@ -460,7 +481,7 @@ export async function getRandomMovies(limit = 12) {
 export async function getHiddenGems(limit = 15) {
   const token = localStorage.getItem("cineai_token");
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
-  const res = await fetch(`${API_BASE}/recommendations/hidden-gems?limit=${limit}`, {
+  const res = await fetchWithRetry(`${API_BASE}/recommendations/hidden-gems?limit=${limit}`, {
     method: "GET",
     credentials: "include",
     headers,

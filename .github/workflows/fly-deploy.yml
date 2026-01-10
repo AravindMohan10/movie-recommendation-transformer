@@ -12,6 +12,14 @@ jobs:
     concurrency: deploy-group    # optional: ensure only one action runs at a time
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps and build RAG index
+        run: |
+          pip install -r backend/requirements.txt
+          python scripts/build_rag_index.py || echo "RAG build failed, deploying CF-only"
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: flyctl deploy --remote-only
         env:

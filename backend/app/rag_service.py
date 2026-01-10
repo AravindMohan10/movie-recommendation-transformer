@@ -38,10 +38,29 @@ class RAGService:
         self._collection: Any = None
         self._movie_embeddings: Dict[int, Any] = {}
         self._base_dir = Path(__file__).resolve().parent.parent.parent
-        # Use persistent volume when available (survives deploys, prebuilt index can be uploaded)
         volume_rag = Path("/data/rag/chroma_db")
         bundled_rag = self._base_dir / "data" / "rag" / "chroma_db"
-        self._chroma_path = volume_rag if Path("/data").exists() else bundled_rag
+
+        def _has_chroma_data(p: Path) -> bool:
+            """Check if path has a non-empty Chroma db (chroma.sqlite3 or similar)."""
+            if not p.exists():
+                return False
+            if (p / "chroma.sqlite3").exists():
+                return True
+            # Chroma 0.4+ may use different layout; check for any sqlite db
+            return any(p.glob("*.sqlite3")) or any(p.glob("*.db"))
+
+        # Prefer volume if it has data; else use bundled (prebuilt in CI); else volume for writing
+        if Path("/data").exists():
+            if _has_chroma_data(volume_rag):
+                self._chroma_path = volume_rag
+            elif _has_chroma_data(bundled_rag):
+                self._chroma_path = bundled_rag
+                logger.info("RAG: using bundled index (volume empty)")
+            else:
+                self._chroma_path = volume_rag
+        else:
+            self._chroma_path = bundled_rag
         self._index_built = False
 
     def _ensure_embedder(self) -> None:

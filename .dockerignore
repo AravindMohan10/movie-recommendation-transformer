@@ -13,7 +13,8 @@ notebooks
 *.ipynb
 
 # Large data not needed at API runtime (saves ~400MB+)
-data/rag
+# Exclude user_prefs (runtime cache); include data/rag/chroma_db when prebuilt in CI
+data/rag/user_prefs
 data/processed_training_data.pt
 data/overview_embeddings.npy
 data/watch_history_tensor.pt

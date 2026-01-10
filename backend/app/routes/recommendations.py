@@ -15,7 +15,6 @@ sys.path.insert(0, str(project_root))
 from ..database import get_db
 from ..models import User, OnboardingStatus
 from ..auth import get_current_user
-from ..model_service import get_model_service
 from ..onboarding_service import onboarding_service
 from ..limiter import limiter
 
@@ -38,6 +37,12 @@ except Exception as e:
     MONITORING_AVAILABLE = False
 
 router = APIRouter(prefix="/api/recommendations", tags=["recommendations"])
+
+
+def _get_model():
+    """Lazy load model_service (defers torch import until first recommendation request)."""
+    from ..model_service import get_model_service
+    return _get_model()
 
 
 def _get_onboarding_status_db(db: Session, user_id: int) -> Dict[str, Optional[object]]:
@@ -121,7 +126,7 @@ async def get_recommendations(
         
         # Get recommendations from model (works with or without onboarding)
         try:
-            model_service = get_model_service()
+            model_service = _get_model()
         except Exception as service_error:
             logger.error(f"Failed to get model service: {service_error}", exc_info=True)
             import traceback
@@ -505,7 +510,7 @@ async def record_interaction(
         
         # Update model with user interaction (wrap in try-except to prevent failures)
         try:
-            model_service = get_model_service()
+            model_service = _get_model()
             model_service.update_user_preferences(
                 current_user.user_id, 
                 movie_id, 
@@ -576,7 +581,7 @@ async def get_user_interactions(
         logger.debug("Found %d interactions for user %s", len(interactions_query), current_user.user_id)
         
         # Get movie data for enrichment
-        model_service = get_model_service()
+        model_service = _get_model()
         
         interactions = []
         for interaction in interactions_query:
@@ -815,7 +820,7 @@ async def get_surprise_me(
 ):
     """Good movies only, no documentaries, any genre mixed. Random sample."""
     try:
-        model_service = get_model_service()
+        model_service = _get_model()
         if len(model_service.movie_data) == 0:
             try:
                 model_service._get_fallback_recommendations(current_user.user_id, 1)
@@ -887,7 +892,7 @@ async def get_mood_recommendations(
     if not criteria:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Could not interpret mood. Try different words.")
     try:
-        model_service = get_model_service()
+        model_service = _get_model()
         movie_data = model_service.movie_data or {}
         if not movie_data:
             return {"recommendations": [], "criteria": criteria.model_dump(), "total": 0}
@@ -955,7 +960,7 @@ async def get_hidden_gems(
         get_hidden_gems_config,
     )
     try:
-        model_service = get_model_service()
+        model_service = _get_model()
         movie_data = model_service.movie_data or {}
         if not movie_data:
             return {"recommendations": [], "config": get_hidden_gems_config(), "total": 0}

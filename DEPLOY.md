@@ -141,7 +141,12 @@ Trigger a deploy (e.g. push to `main` or click **Deploy** in Vercel). When it’
 ### Recommendations loading forever (3+ minutes)
 
 - Previously, RAG would rebuild its Chroma index on first request (10–30 min on CPU). Now the app skips RAG when the index is empty and returns CF-only recommendations within seconds.
-- RAG index lives at `/data/rag/chroma_db`. To enable full CF+RAG, build the index locally and upload to the volume via SFTP, or run `python scripts/build_rag_index.py` inside a Fly SSH session.
+- **CI-built RAG:** The GitHub Actions deploy workflow builds the RAG index before deploy and bundles it in the Docker image. CF+RAG works on first deploy when the index is prebuilt.
+- **Manual fallback:** To build RAG manually, run `python scripts/build_rag_index.py` locally, then upload `data/rag/chroma_db/` to `/data/rag/chroma_db` via `fly sftp shell`.
+
+### Cold-start 502s
+
+- The app defers heavy imports (torch, model_retraining) so it binds to port 8080 faster. The frontend retries 502/503 up to 3 times with exponential backoff. If 502s persist, consider `min_machines_running = 1` in `fly.toml` (costs more).
 
 ---
 

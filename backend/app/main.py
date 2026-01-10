@@ -10,7 +10,6 @@ from .limiter import limiter, LIMITER_AVAILABLE
 from .routes import users
 from .routes import recommendations
 from .routes import movies
-from .model_retraining import retraining_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -120,6 +119,7 @@ def _sync_startup():
     except Exception as e:
         logger.warning("Monitoring setup: %s", e)
     try:
+        from .model_retraining import retraining_service
         retraining_service.start_scheduled_retraining()
         logger.info("Model retraining scheduler started")
     except Exception as e:

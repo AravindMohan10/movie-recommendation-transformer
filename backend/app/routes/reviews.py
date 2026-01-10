@@ -8,9 +8,14 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..database import get_db
 from ..models import User, UserInteraction
-from ..model_service import get_model_service
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
+
+
+def _get_model():
+    """Lazy load model_service (defers torch import until first use)."""
+    from ..model_service import get_model_service
+    return get_model_service()
 
 
 @router.get("/my")
@@ -30,7 +35,7 @@ async def get_my_reviews(
         .limit(limit)
         .all()
     )
-    model = get_model_service()
+    model = _get_model()
     out = []
     for r in rows:
         md = model.movie_data.get(str(r.movie_id)) or model.movie_data.get(r.movie_id)
@@ -65,7 +70,7 @@ async def get_movie_reviews(
         .limit(limit)
         .all()
     )
-    model = get_model_service()
+    model = _get_model()
     md = model.movie_data.get(str(movie_id)) or model.movie_data.get(movie_id)
     movie_title = (md or {}).get("title", f"Movie {movie_id}")
     out = []
