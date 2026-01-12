@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
 def _get_model():
     """Lazy load model_service (defers torch import until first use)."""
     from ..model_service import get_model_service
-    return _get_model()
+    return get_model_service()
 
 @router.post("/add")
 @limiter.limit("60/minute")

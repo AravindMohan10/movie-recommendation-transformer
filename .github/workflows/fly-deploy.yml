@@ -18,7 +18,8 @@ jobs:
           python-version: "3.11"
       - name: Install deps and build RAG index
         run: |
-          pip install -r backend/requirements.txt
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install sentence-transformers chromadb
           python scripts/build_rag_index.py || echo "RAG build failed, deploying CF-only"
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: flyctl deploy --remote-only

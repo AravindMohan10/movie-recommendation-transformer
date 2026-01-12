@@ -42,7 +42,7 @@ router = APIRouter(prefix="/api/recommendations", tags=["recommendations"])
 def _get_model():
     """Lazy load model_service (defers torch import until first recommendation request)."""
     from ..model_service import get_model_service
-    return _get_model()
+    return get_model_service()
 
 
 def _get_onboarding_status_db(db: Session, user_id: int) -> Dict[str, Optional[object]]:
