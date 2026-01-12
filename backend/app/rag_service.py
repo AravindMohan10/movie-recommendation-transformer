@@ -42,15 +42,16 @@ class RAGService:
         bundled_rag = self._base_dir / "data" / "rag" / "chroma_db"
 
         def _has_chroma_data(p: Path) -> bool:
-            """Check if path has a non-empty Chroma db (chroma.sqlite3 or similar)."""
+            """Check if path has a populated Chroma db. Empty dbs (e.g. from failed init) are tiny."""
             if not p.exists():
                 return False
-            if (p / "chroma.sqlite3").exists():
-                return True
-            # Chroma 0.4+ may use different layout; check for any sqlite db
-            return any(p.glob("*.sqlite3")) or any(p.glob("*.db"))
+            db_file = p / "chroma.sqlite3"
+            if not db_file.exists():
+                return any(p.glob("*.sqlite3")) or any(p.glob("*.db"))
+            # Prebuilt index is ~130MB; empty Chroma db is <1MB
+            return db_file.stat().st_size > 1_000_000
 
-        # Prefer volume if it has data; else use bundled (prebuilt in CI); else volume for writing
+        # Prefer volume if it has real data; else use bundled (prebuilt in CI); else volume for writing
         if Path("/data").exists():
             if _has_chroma_data(volume_rag):
                 self._chroma_path = volume_rag
