@@ -6,14 +6,9 @@ from ..database import get_db
 from ..models import User, Watchlist
 from ..auth import get_current_user
 from ..limiter import limiter
+from ..movie_metadata import get_movie_info
 
 router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
-
-
-def _get_model():
-    """Lazy load model_service (defers torch import until first use)."""
-    from ..model_service import get_model_service
-    return get_model_service()
 
 @router.post("/add")
 @limiter.limit("60/minute")
@@ -120,11 +115,10 @@ async def get_watchlist(
             Watchlist.user_id == current_user.user_id
         ).order_by(Watchlist.added_at.desc()).limit(limit).all()
         
-        model = _get_model()
         out = []
         for item in watchlist_items:
-            md = model.movie_data.get(str(item.movie_id)) or model.movie_data.get(item.movie_id)
-            pp = (md or {}).get("poster_path")
+            md = get_movie_info(item.movie_id)
+            pp = md.get("poster_path")
             if pp and str(pp).strip() and str(pp) != "None":
                 pp = str(pp).strip()
                 poster_url = pp if pp.startswith("http") else f"https://image.tmdb.org/t/p/w342{pp}" if pp.startswith("/") else f"https://image.tmdb.org/t/p/w342/{pp}"
@@ -133,8 +127,8 @@ async def get_watchlist(
             out.append({
                 "id": item.id,
                 "movie_id": item.movie_id,
-                "movie_title": (md or {}).get("title", f"Movie {item.movie_id}"),
-                "poster_path": (md or {}).get("poster_path"),
+                "movie_title": md.get("title", f"Movie {item.movie_id}"),
+                "poster_path": md.get("poster_path"),
                 "poster_url": poster_url,
                 "added_at": item.added_at.isoformat() if item.added_at else None,
             })

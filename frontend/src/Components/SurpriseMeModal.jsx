@@ -91,7 +91,7 @@ const SurpriseMeModal = ({ isOpen, onClose, movies, loading, onLike, onDislike, 
               {/* Header - Matching gallery style */}
               <div className="p-6 border-b relative z-10" style={{ borderColor: 'rgba(1, 255, 233, 0.2)' }}>
                 <h2 className="text-3xl font-bold mb-2" style={{ color: '#01ffe9' }}>
-                  🎬 Surprise Me! Hidden Gems
+                  🎬 Surprise Me!
                 </h2>
                 <p className="text-gray-400 mt-2">
                   Discover {movies.length} high-quality films worth watching

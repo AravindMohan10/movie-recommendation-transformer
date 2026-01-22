@@ -1,3 +1,4 @@
+import threading
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
 from typing import List, Dict, Optional
@@ -171,7 +172,9 @@ async def get_recommendations(
             logger.warning(f"No recommendations returned for user {current_user.user_id}, trying fallback...")
             try:
                 # Force fallback recommendations
-                recommendations = model_service._get_fallback_recommendations(current_user.user_id, limit)
+                recommendations = model_service._get_fallback_recommendations(
+                    current_user.user_id, limit, db_session=db
+                )
                 logger.info(f"Fallback returned {len(recommendations)} recommendations")
             except Exception as fallback_error:
                 logger.error(f"Fallback also failed: {fallback_error}", exc_info=True)
@@ -508,21 +511,23 @@ async def record_interaction(
                 }
             raise
         
-        # Update model with user interaction (wrap in try-except to prevent failures)
-        try:
-            model_service = _get_model()
-            model_service.update_user_preferences(
-                current_user.user_id, 
-                movie_id, 
-                action_ratings[action], 
-                action
-            )
-        except Exception as model_error:
-            logger.warning("Failed to update model preferences: %s", model_error)
-            import traceback
-            traceback.print_exc()
-            # Don't fail the request if model update fails - interaction is already saved
-        
+        # Update model in background so we return fast (model load can take 15-30s when cold)
+        def _update_model_background():
+            try:
+                svc = _get_model()
+                svc.update_user_preferences(
+                    current_user.user_id,
+                    movie_id,
+                    action_ratings[action],
+                    action,
+                    review_text=review_text if action == "review" else None,
+                )
+            except Exception as e:
+                logger.warning("Background model update failed: %s", e)
+
+        t = threading.Thread(target=_update_model_background, daemon=True)
+        t.start()
+
         # Record interaction (monitoring)
         if MONITORING_AVAILABLE and monitor:
             try:

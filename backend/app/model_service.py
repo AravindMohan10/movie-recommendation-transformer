@@ -4,7 +4,8 @@ import numpy as np
 import pickle
 import json
 import os
-from typing import List, Dict, Optional, Tuple, Any
+import time
+from typing import List, Dict, Optional, Tuple, Any, Set
 from datetime import datetime, timedelta
 from collections import defaultdict
 import logging
@@ -41,6 +42,10 @@ REC_CACHE_VERSION = "v3"
 
 # Main recommendations: only movies from this year onward (older movies in "Classics" genre)
 MAIN_REC_MIN_YEAR = int(os.getenv("MAIN_REC_MIN_YEAR", "1980"))
+
+# Lightweight cache for onboarding prefs in fallback (avoids repeated DB hits within 60s)
+_onboarding_prefs_cache: Dict[int, Tuple[Tuple[List[str], Set[int]], float]] = {}
+_ONBOARDING_CACHE_TTL = 60.0
 
 class MovieRecommendationModel:
     def __init__(self, model_path: Optional[str] = None, use_redis: bool = True):
@@ -346,7 +351,7 @@ class MovieRecommendationModel:
             try:
                 exclude_last = self._get_last_shown(user_id)
                 fallback_recs = self._get_fallback_recommendations(
-                    user_id, n_recommendations, exclude_ids=exclude_last
+                    user_id, n_recommendations, exclude_ids=exclude_last, db_session=db_session
                 )
                 if fallback_recs:
                     self._set_last_shown(user_id, [r["movie_id"] for r in fallback_recs])
@@ -442,7 +447,9 @@ class MovieRecommendationModel:
                 fallback_needed = n_recommendations - len(formatted_recs)
                 existing_ids = {rec["movie_id"] for rec in formatted_recs}
                 exclude_fallback = list(existing_ids) + exclude_last_shown
-                fallback_recs = self._get_fallback_recommendations(user_id, fallback_needed, exclude_ids=exclude_fallback)
+                fallback_recs = self._get_fallback_recommendations(
+                    user_id, fallback_needed, exclude_ids=exclude_fallback, db_session=db_session
+                )
                 for fallback in fallback_recs:
                     if fallback["movie_id"] not in existing_ids:
                         formatted_recs.append(fallback)
@@ -465,7 +472,7 @@ class MovieRecommendationModel:
             logger.error(f"Error getting recommendations: {e}", exc_info=True)
             exclude_last = self._get_last_shown(user_id)
             return self._get_fallback_recommendations(
-                user_id, n_recommendations, exclude_ids=exclude_last
+                user_id, n_recommendations, exclude_ids=exclude_last, db_session=db_session
             )
     
     def _reload_user_interactions_from_db(self, user_id: int, db_session) -> None:
@@ -824,9 +831,9 @@ class MovieRecommendationModel:
         return movie.get("director")
     
     def _get_fallback_recommendations(
-        self, user_id: int, n_recommendations: int, exclude_ids: Optional[List[int]] = None
+        self, user_id: int, n_recommendations: int, exclude_ids: Optional[List[int]] = None, db_session=None
     ) -> List[Dict]:
-        """Fallback recommendations when model is not available. exclude_ids: skip these (e.g. last-shown)."""
+        """Fallback recommendations when model is not available. Uses onboarding genre prefs when available."""
         exclude_set = set()
         for x in exclude_ids or []:
             exclude_set.add(x)
@@ -834,6 +841,38 @@ class MovieRecommendationModel:
                 exclude_set.add(str(x))
             elif isinstance(x, str) and x.isdigit():
                 exclude_set.add(int(x))
+
+        preferred_genres: List[str] = []
+        favorite_tmdb_ids: Set[int] = set()
+        if db_session:
+            now = time.monotonic()
+            cached = _onboarding_prefs_cache.get(user_id)
+            if cached and (now - cached[1]) < _ONBOARDING_CACHE_TTL:
+                preferred_genres, favorite_tmdb_ids = cached[0]
+            else:
+                try:
+                    from .models import OnboardingStatus
+                    row = db_session.query(OnboardingStatus).filter(OnboardingStatus.user_id == user_id).first()
+                    if row and row.data:
+                        data = json.loads(row.data) if isinstance(row.data, str) else (row.data or {})
+                        prefs = data.get("preferences") or {}
+                        preferred_genres = [str(g).strip() for g in (prefs.get("genres") or []) if g]
+                        for item in (prefs.get("favorite_movies") or []):
+                            if isinstance(item, dict):
+                                mid = item.get("movie_id") or item.get("id") or item.get("tmdb_id")
+                                if mid is not None:
+                                    try:
+                                        iid = int(mid)
+                                        if iid > 100:
+                                            favorite_tmdb_ids.add(iid)
+                                    except (ValueError, TypeError):
+                                        pass
+                            elif isinstance(item, int) and item > 100:
+                                favorite_tmdb_ids.add(item)
+                        _onboarding_prefs_cache[user_id] = ((preferred_genres, favorite_tmdb_ids), now)
+                except Exception as e:
+                    logger.debug("Could not load onboarding prefs for fallback: %s", e)
+
         if len(self.movie_data) == 0:
             logger.warning("Movie data is empty, attempting to load...")
             try:
@@ -862,33 +901,69 @@ class MovieRecommendationModel:
         if len(self.movie_data) == 0:
             logger.error("No movie data available for fallback recommendations - check data files!")
             return []
-        
-        candidates = sorted(
-            self.movie_data.items(),
-            key=lambda x: (x[1].get("vote_average", 0) or 0) * ((x[1].get("vote_count", 0) or 1)),
-            reverse=True,
-        )
-        out = []
-        for movie_id, movie in candidates:
-            if len(out) >= n_recommendations:
-                break
+
+        # Expand preferred_genres from favorite movies' genres (user selected similar films)
+        if favorite_tmdb_ids and self.movie_data:
+            prefs_upper = {p.upper() for p in preferred_genres if p}
+            for fid in favorite_tmdb_ids:
+                m = self.movie_data.get(str(fid)) or self.movie_data.get(fid)
+                if m:
+                    for g in (m.get("genres") or []):
+                        name = (g.get("name") if isinstance(g, dict) else str(g)).strip().upper()
+                        if name and name not in prefs_upper:
+                            preferred_genres.append(name)
+                            prefs_upper.add(name)
+
+        def _movie_genres(movie: Dict) -> List[str]:
+            gs = movie.get("genres") or []
+            out = []
+            for g in gs:
+                if isinstance(g, dict) and g.get("name"):
+                    out.append(str(g["name"]).strip().upper())
+                elif isinstance(g, str):
+                    out.append(g.strip().upper())
+            return out
+
+        def _matches_preferred(movie: Dict) -> bool:
+            if not preferred_genres:
+                return False
+            mg = _movie_genres(movie)
+            prefs_upper = [p.upper() for p in preferred_genres if p]
+            return any(p in mg for p in prefs_upper)
+
+        scored = []
+        for movie_id, movie in self.movie_data.items():
             year = self._release_year(movie)
             if year is None or year < MAIN_REC_MIN_YEAR:
                 continue
             mid = int(movie_id) if isinstance(movie_id, str) and movie_id.isdigit() else movie_id
             if mid in exclude_set:
                 continue
+            va = movie.get("vote_average") or 0
+            vc = max(1, movie.get("vote_count") or 1)
+            score = va * vc
+            if preferred_genres and _matches_preferred(movie):
+                score *= 1.5  # Boost genre matches
+            scored.append((movie_id, movie, score))
+
+        scored.sort(key=lambda x: -x[2])
+        out = []
+        for movie_id, movie, _ in scored:
+            if len(out) >= n_recommendations:
+                break
+            mid = int(movie_id) if isinstance(movie_id, str) and movie_id.isdigit() else movie_id
+            expl = "Matches your preferred genres" if preferred_genres and _matches_preferred(movie) else "Popular movie (fallback recommendation)"
             out.append({
                 "movie_id": mid,
                 "title": movie.get("title", f"Movie {movie_id}"),
                 "predicted_rating": float(movie.get("vote_average", 7.0)),
-                "confidence": 0.3,
+                "confidence": 0.35 if preferred_genres and _matches_preferred(movie) else 0.3,
                 "poster_path": movie.get("poster_path"),
                 "overview": (movie.get("overview") or "")[:200],
                 "vote_average": movie.get("vote_average"),
                 "director": self._extract_director(movie),
                 "guarantee_level": "low",
-                "explanation": "Popular movie (fallback recommendation)",
+                "explanation": expl,
             })
         return out
     

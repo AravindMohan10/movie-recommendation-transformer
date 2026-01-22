@@ -150,8 +150,21 @@ export async function logout() {
   }
 }
 
+/** Cache: onboarding status, 2 min TTL. Cleared on complete/reset. */
+let _onboardingCache = null;
+let _onboardingCacheTs = 0;
+const ONBOARDING_CACHE_MS = 2 * 60 * 1000;
+
+export function clearOnboardingCache() {
+  _onboardingCache = null;
+  _onboardingCacheTs = 0;
+}
+
 export async function getOnboardingStatus() {
   try {
+    if (_onboardingCache && Date.now() - _onboardingCacheTs < ONBOARDING_CACHE_MS) {
+      return _onboardingCache;
+    }
     const token = localStorage.getItem('cineai_token');
     const headers = {
       'Authorization': `Bearer ${token}`,
@@ -162,7 +175,10 @@ export async function getOnboardingStatus() {
       credentials: "include",
       headers,
     });
-    return handleResponse(res);
+    const data = await handleResponse(res);
+    _onboardingCache = data;
+    _onboardingCacheTs = Date.now();
+    return data;
   } catch (error) {
     console.error('Get onboarding status error:', error);
     throw error;
@@ -183,7 +199,9 @@ export async function completeOnboarding(onboardingData) {
       headers,
       body: JSON.stringify(onboardingData),
     });
-    return handleResponse(res);
+    const data = await handleResponse(res);
+    clearOnboardingCache();
+    return data;
   } catch (error) {
     console.error('Complete onboarding error:', error);
     throw error;
@@ -203,7 +221,9 @@ export async function resetOnboarding() {
       headers,
       body: JSON.stringify({}), // keep shape consistent
     });
-    return handleResponse(res);
+    const data = await handleResponse(res);
+    clearOnboardingCache();
+    return data;
   } catch (error) {
     console.error('Reset onboarding error:', error);
     throw error;
@@ -398,7 +418,7 @@ function authHeaders() {
 }
 
 export async function getMyReviews() {
-  const res = await fetch(`${API_BASE}/reviews/my`, {
+  const res = await fetchWithRetry(`${API_BASE}/reviews/my`, {
     method: "GET",
     credentials: "include",
     headers: authHeaders(),
@@ -407,7 +427,7 @@ export async function getMyReviews() {
 }
 
 export async function getMovieReviews(movieId) {
-  const res = await fetch(`${API_BASE}/reviews/movie/${movieId}`, {
+  const res = await fetchWithRetry(`${API_BASE}/reviews/movie/${movieId}`, {
     method: "GET",
     credentials: "include",
     headers: authHeaders(),
@@ -439,13 +459,18 @@ export async function getMovieById(movieId) {
   return handleResponse(res);
 }
 
+/** Cache: genres are static for the session. */
+let _genresCache = null;
+
 /** Public: list of genre names for browse-by-genre. No auth. */
 export async function getGenres() {
+  if (_genresCache) return _genresCache;
   const res = await fetchWithRetry(`${API_BASE}/movies/genres`, {
     method: "GET",
     credentials: "include",
   });
-  return handleResponse(res);
+  _genresCache = await handleResponse(res);
+  return _genresCache;
 }
 
 /** Public: all movies in a genre from catalog (not recommendations). No auth. */
