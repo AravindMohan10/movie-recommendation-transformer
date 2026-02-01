@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { Search, ThumbsUp, Bookmark, Loader2 } from "lucide-react";
 import { searchMovies } from "../Utils/api";
 
@@ -128,20 +129,26 @@ export default function MovieSearch({ onLike, onWatchlist, isInWatchlist }) {
                 return (
                   <div
                     key={id}
-                    className="flex items-center gap-3 p-3 hover:bg-white/5 border-b border-teal-500/10 last:border-0"
+                    className="flex items-center gap-3 p-3 hover:bg-white/5 border-b border-teal-500/10 last:border-0 group"
                   >
-                    <img
-                      src={posterUrl(m)}
-                      alt=""
-                      className="w-10 h-14 object-cover rounded flex-shrink-0"
-                      onError={(e) => { e.target.onerror = null; e.target.src = "https://via.placeholder.com/40x56/1a1a1a/666666?text=No+Poster"; }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-medium truncate">{m.title}</p>
-                      {m.release_year && (
-                        <p className="text-gray-500 text-xs">{m.release_year}</p>
-                      )}
-                    </div>
+                    <Link
+                      to={`/share/movie/${id}`}
+                      className="flex items-center gap-3 flex-1 min-w-0"
+                      onClick={() => setOpen(false)}
+                    >
+                      <img
+                        src={posterUrl(m)}
+                        alt=""
+                        className="w-10 h-14 object-cover rounded flex-shrink-0"
+                        onError={(e) => { e.target.onerror = null; e.target.src = "https://via.placeholder.com/40x56/1a1a1a/666666?text=No+Poster"; }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium truncate group-hover:text-teal-300 transition-colors">{m.title}</p>
+                        {m.release_year && (
+                          <p className="text-gray-500 text-xs">{m.release_year}</p>
+                        )}
+                      </div>
+                    </Link>
                     <div className="flex gap-1">
                       <button
                         type="button"

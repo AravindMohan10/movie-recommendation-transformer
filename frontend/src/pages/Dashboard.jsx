@@ -1017,14 +1017,6 @@ export default function Dashboard() {
               </h2>
               <p className="text-gray-400 font-light">
                 Curated just for you
-                {" · "}
-                <button
-                  type="button"
-                  onClick={() => setHowItWorksOpen(true)}
-                  className="text-teal-400 hover:text-teal-300 underline underline-offset-2 transition"
-                >
-                  How it works
-                </button>
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -1086,7 +1078,7 @@ export default function Dashboard() {
                   <button
                     key={genreName}
                     type="button"
-                    onClick={() => setSelectedGenre(genreName)}
+                    onClick={() => setSelectedGenre(isActive ? null : genreName)}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 border ${
                       isActive
                         ? "bg-teal-500/20 border-teal-400 text-teal-200 shadow-sm shadow-teal-500/10"
@@ -1221,7 +1213,7 @@ export default function Dashboard() {
               ) : hiddenGems.length > 0 ? (
                 <div className="overflow-x-auto pb-4 scrollbar-thin -mx-2 px-2" style={{ scrollbarWidth: "thin" }}>
                   <HolographicGallery
-                    movies={hiddenGems}
+                    movies={hiddenGems.filter((g) => !movies.some((m) => (m.id || m.movie_id) === (g.id || g.movie_id)))}
                     onLike={handleLike}
                     onDislike={handleDislike}
                     onFavorite={handleFavorite}

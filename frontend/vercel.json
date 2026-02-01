@@ -3,6 +3,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://movie-recommendation-transformer.fly.dev/api/:path*"
+    },
+    {
+      "source": "/((?!api|assets).*)",
+      "destination": "/index.html"
     }
   ]
 }

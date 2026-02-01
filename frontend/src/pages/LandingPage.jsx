@@ -91,9 +91,9 @@ export default function LandingPage() {
               textShadow: "0 4px 28px #25252580, 0 1px 14px #ffffff13",
             }}
           >
-            Movies that fit your life—
+            Movies that fit your life,
             <span style={{ color: "#fff", WebkitTextFillColor: "white" }}>
-              before you click play.
+              {" "}before you click play.
             </span>
           </motion.h1>
 
@@ -104,7 +104,7 @@ export default function LandingPage() {
             transition={{ delay: 0.3, duration: 1 }}
             className="max-w-2xl mx-auto text-xl sm:text-2xl text-center text-gray-300 mb-14 font-medium"
           >
-            Collaborative filtering + RAG over reviews. Like, review, and add to your watchlist—we personalize from your taste.
+            Like, review, and add to your watchlist. We learn your taste and surface picks you will enjoy.
           </motion.p>
 
           {/* Scroll Arrow */}
@@ -146,7 +146,7 @@ export default function LandingPage() {
             transition={{ delay: 0.4, duration: 0.8 }}
             className="text-xl sm:text-2xl font-semibold text-center text-teal-300 mb-4"
           >
-            Sample Picks — Good Movies, Any Genre
+            Sample Picks: Good Movies, Any Genre
           </motion.h3>
 
           <motion.div

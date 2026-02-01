@@ -8,6 +8,9 @@ const HolographicGallery = ({ movies, onLike, onDislike, onFavorite, onReview, u
   const [currentIndex, setCurrentIndex] = useState(0);
   const containerRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
+  const MOVIES_PER_SLIDE = 3;
+  const numSlides = Math.max(1, Math.ceil(movies.length / MOVIES_PER_SLIDE));
+  const currentSlide = Math.min(Math.floor(currentIndex / MOVIES_PER_SLIDE), numSlides - 1);
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
   
@@ -52,8 +55,30 @@ const HolographicGallery = ({ movies, onLike, onDislike, onFavorite, onReview, u
     setIsDragging(false);
   };
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const cardWidth = 352;
+      const scrollLeft = el.scrollLeft;
+      const index = Math.round(scrollLeft / cardWidth);
+      setCurrentIndex(Math.min(Math.max(0, index), movies.length - 1));
+    };
+    el.addEventListener('scroll', onScroll);
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [movies.length]);
+
   const handleCardClick = (index) => {
     setCurrentIndex(index);
+  };
+
+  const scrollToSlide = (slideIndex) => {
+    const cardWidth = 352;
+    const scrollPos = Math.min(slideIndex * MOVIES_PER_SLIDE * cardWidth, (movies.length - 1) * cardWidth);
+    if (containerRef.current) {
+      containerRef.current.scrollTo({ left: scrollPos, behavior: 'smooth' });
+    }
+    setCurrentIndex(Math.min(slideIndex * MOVIES_PER_SLIDE, movies.length - 1));
   };
 
   const handleButtonClick = (action, movieTitle, movieId, e) => {
@@ -395,16 +420,19 @@ const HolographicGallery = ({ movies, onLike, onDislike, onFavorite, onReview, u
         ))}
       </div>
       
-      {/* Navigation Dots */}
-      <div className="navigation-dots">
-        {movies.map((_, index) => (
-          <button
-            key={index}
-            className={`nav-dot ${currentIndex === index ? 'active' : ''}`}
-            onClick={() => setCurrentIndex(index)}
-          />
-        ))}
-      </div>
+      {/* Navigation Dots: one per slide (not per movie) */}
+      {numSlides > 1 && (
+        <div className="navigation-dots">
+          {Array.from({ length: numSlides }, (_, i) => (
+            <button
+              key={i}
+              className={`nav-dot ${currentSlide === i ? 'active' : ''}`}
+              onClick={() => scrollToSlide(i)}
+              aria-label={`Go to slide ${i + 1} of ${numSlides}`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
