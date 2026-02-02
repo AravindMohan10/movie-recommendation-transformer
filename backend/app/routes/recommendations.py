@@ -119,9 +119,9 @@ async def get_recommendations(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     limit: int = 10,
-    force_refresh: bool = True
+    force_refresh: bool = False
 ):
-    """Get personalized movie recommendations for the current user with progressive enhancement. Registered for '' and '/' so GET /api/recommendations (no trailing slash) works."""
+    """Get personalized movie recommendations. Cached 24h unless force_refresh=True. Registered for '' and '/' so GET /api/recommendations works."""
     try:
         from ..models import UserInteraction
         

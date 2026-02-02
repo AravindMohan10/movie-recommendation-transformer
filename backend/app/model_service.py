@@ -318,7 +318,7 @@ class MovieRecommendationModel:
             n_recommendations: Number of recommendations to return
             interaction_count: Number of user interactions (for progressive enhancement)
             db_session: Optional database session to load fresh interactions
-            force_refresh: Force cache refresh (only works in development mode)
+            force_refresh: Force cache bypass and regenerate fresh recommendations
         """
         import time
         start_time = time.time()

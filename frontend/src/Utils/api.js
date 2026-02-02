@@ -251,14 +251,15 @@ export async function updateOnboarding(onboardingData) {
   }
 }
 
-export async function getRecommendations(limit = 10) {
+export async function getRecommendations(limit = 10, forceRefresh = false) {
   try {
     const token = localStorage.getItem('cineai_token');
     const headers = {
       'Authorization': `Bearer ${token}`,
     };
-
-    const res = await fetchWithRetry(`${API_BASE}/recommendations?limit=${limit}`, {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (forceRefresh) params.set('force_refresh', 'true');
+    const res = await fetchWithRetry(`${API_BASE}/recommendations?${params}`, {
       method: "GET",
       credentials: "include",
       headers,

@@ -236,11 +236,11 @@ export default function Dashboard() {
     }
   };
 
-  const fetchRecommendations = async () => {
+  const fetchRecommendations = async (forceRefresh = false) => {
     try {
       setLoadingRecommendations(true);
       
-      const data = await getRecommendations(10);
+      const data = await getRecommendations(10, forceRefresh);
       
       // Track model source
       const isModelRecommendations = data.recommendations.length > 0 && 
@@ -1026,8 +1026,9 @@ export default function Dashboard() {
                 isInWatchlist={(id) => watchlist.some((w) => w.movie_id === id)}
               />
               <button
-                onClick={fetchRecommendations}
+                onClick={() => fetchRecommendations(true)}
                 disabled={loadingRecommendations}
+                title="Get new picks now (recommendations auto-refresh every 24h)"
                 className="px-4 py-2 bg-black/70 border border-teal-700 text-teal-200 rounded-lg font-medium hover:border-teal-500 hover:bg-teal-500/10 transition-all disabled:opacity-50 flex items-center gap-2"
               >
                 {loadingRecommendations ? (
@@ -1035,7 +1036,7 @@ export default function Dashboard() {
                 ) : (
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                 )}
-                Refresh
+                New picks
               </button>
               <button
                 onClick={handleSurpriseMe}
@@ -1143,14 +1144,15 @@ export default function Dashboard() {
                   <div className="text-4xl mb-4">🎬</div>
                   <div className="text-xl text-gray-300 mb-2">No recommendations yet</div>
                   <div className="text-gray-500 mb-6 max-w-md mx-auto">
-                    Like a few movies, add some to your watchlist, or try Refresh. We’ll curate picks for you.
+                    Like a few movies, add some to your watchlist, or try New picks. We’ll curate picks for you.
                   </div>
                   <button
-                    onClick={fetchRecommendations}
+                    onClick={() => fetchRecommendations(true)}
                     disabled={loadingRecommendations}
+                    title="Get new picks now"
                     className="px-6 py-3 bg-gradient-to-r from-teal-400 to-blue-500 text-white rounded-lg font-medium hover:scale-105 transition-all duration-300 disabled:opacity-50"
                   >
-                    Refresh recommendations
+                    Get new picks
                   </button>
                 </div>
               )

@@ -44,7 +44,7 @@ export default function LandingPage() {
   const featureData = [
     { icon: "🎯", title: "CF + RAG", desc: "Collaborative filtering plus RAG over reviews. No documentaries, quality picks." },
     { icon: "⭐", title: "Rate & Review", desc: "Likes and reviews feed both CF and RAG for better personalization." },
-    { icon: "🔄", title: "24h Refresh", desc: "Recommendations refresh every 24h; no same movie twice." },
+    { icon: "🔄", title: "24h Refresh", desc: "Recommendations refresh every 24h with new picks. Unreviewed movies can return later." },
     { icon: "📊", title: "Confidence & Why", desc: "Per-movie confidence and “Why recommended?” so you see the thinking." },
   ];
 
