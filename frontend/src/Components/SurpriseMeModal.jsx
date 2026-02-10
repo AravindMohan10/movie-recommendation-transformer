@@ -298,7 +298,7 @@ const SurpriseMeModal = ({ isOpen, onClose, movies, loading, onLike, onDislike, 
                                 className={`action-button like ${isLiked ? 'active' : ''}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (onLike) onLike(currentMovie.title);
+                                  if (onLike) onLike(currentMovie);
                                 }}
                                 title={isLiked ? 'Liked' : 'Like'}
                                 style={likeStyle}
@@ -314,7 +314,7 @@ const SurpriseMeModal = ({ isOpen, onClose, movies, loading, onLike, onDislike, 
                                 className={`action-button dislike ${isDisliked ? 'active' : ''}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (onDislike) onDislike(currentMovie.title);
+                                  if (onDislike) onDislike(currentMovie);
                                 }}
                                 title={isDisliked ? 'Disliked' : 'Dislike'}
                                 style={dislikeStyle}
@@ -331,7 +331,7 @@ const SurpriseMeModal = ({ isOpen, onClose, movies, loading, onLike, onDislike, 
                                 className={`action-button favorite ${isFavorited ? 'active' : ''}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (onFavorite) onFavorite(currentMovie.title);
+                                  if (onFavorite) onFavorite(currentMovie);
                                 }}
                                 title={isFavorited ? 'Remove from Favorites' : 'Add to Favorites'}
                                 style={favoriteStyle}

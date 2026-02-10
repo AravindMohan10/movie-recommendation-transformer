@@ -5,6 +5,10 @@
       "destination": "https://movie-recommendation-transformer.fly.dev/api/:path*"
     },
     {
+      "source": "/share/movie/:movieId",
+      "destination": "/index.html"
+    },
+    {
       "source": "/((?!api|assets).*)",
       "destination": "/index.html"
     }

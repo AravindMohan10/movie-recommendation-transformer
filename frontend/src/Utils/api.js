@@ -251,14 +251,13 @@ export async function updateOnboarding(onboardingData) {
   }
 }
 
-export async function getRecommendations(limit = 10, forceRefresh = false) {
+export async function getRecommendations(limit = 10) {
   try {
     const token = localStorage.getItem('cineai_token');
     const headers = {
       'Authorization': `Bearer ${token}`,
     };
     const params = new URLSearchParams({ limit: String(limit) });
-    if (forceRefresh) params.set('force_refresh', 'true');
     const res = await fetchWithRetry(`${API_BASE}/recommendations?${params}`, {
       method: "GET",
       credentials: "include",
@@ -453,7 +452,7 @@ export async function submitReview(movieId, rating, reviewText) {
 
 /** Public: fetch movie by id (for share page). No auth. */
 export async function getMovieById(movieId) {
-  const res = await fetch(`${API_BASE}/movies/${movieId}`, {
+  const res = await fetchWithRetry(`${API_BASE}/movies/${movieId}`, {
     method: "GET",
     credentials: "include",
   });

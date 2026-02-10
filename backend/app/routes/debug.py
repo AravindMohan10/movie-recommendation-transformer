@@ -24,7 +24,7 @@ async def get_model_status(current_user: User = Depends(get_current_user)):
         
         # Try to get a test recommendation
         try:
-            test_rec = model_service.get_recommendations(current_user.user_id, 1, 0)
+            test_rec, _ = model_service.get_recommendations(current_user.user_id, 1, 0)
             status["test_recommendation"] = {
                 "success": True,
                 "count": len(test_rec) if test_rec else 0

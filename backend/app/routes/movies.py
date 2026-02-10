@@ -292,10 +292,31 @@ def _release_year(movie_data: dict) -> Optional[int]:
     return None
 
 
+INDIAN_GENRE = "Indian"
+
+def _is_indian_movie(m: dict) -> bool:
+    """True if movie has India in production_countries."""
+    pc = m.get("production_countries")
+    if not pc:
+        return False
+    if isinstance(pc, list):
+        for c in pc:
+            if isinstance(c, dict):
+                name = (c.get("name") or "").upper()
+                iso = (c.get("iso_3166_1") or "").upper()
+                if "INDIA" in name or iso == "IN":
+                    return True
+            elif isinstance(c, str) and "india" in c.lower():
+                return True
+    elif isinstance(pc, str):
+        return "india" in pc.lower()
+    return False
+
+
 @router.get("/genres")
 async def get_genres() -> Dict:
-    """Return list of all genre names (for browse-by-genre). Includes Classics (Pre-1980)."""
-    return {"genres": list(_TMDB_GENRES.values()) + [CLASSICS_GENRE]}
+    """Return list of all genre names (for browse-by-genre). Includes Classics (Pre-1980), Indian."""
+    return {"genres": list(_TMDB_GENRES.values()) + [CLASSICS_GENRE, INDIAN_GENRE]}
 
 
 # Quality controls for by-genre: avoid obscure/niche titles with inflated ratings
@@ -324,11 +345,15 @@ async def get_movies_by_genre(
     genre_clean = genre.strip()
     is_documentary_genre = genre_clean.lower() == "documentary"
     is_classics_genre = genre_clean == CLASSICS_GENRE
+    is_indian_genre = genre_clean == INDIAN_GENRE
     matching = []
     for m in movies:
         if _is_adult(m):
             continue
-        if is_classics_genre:
+        if is_indian_genre:
+            if not _is_indian_movie(m):
+                continue
+        elif is_classics_genre:
             yr = _release_year(m)
             if yr is None or yr >= CLASSICS_CUTOFF_YEAR:
                 continue
@@ -447,10 +472,16 @@ async def get_movie_by_id(movie_id: int) -> Dict:
     for m in movies:
         mid = m.get("tmdb_id") or m.get("id")
         if mid is not None and int(mid) == int(movie_id):
+            pp = m.get("poster_path")
+            poster_url = None
+            if pp and str(pp).strip() and str(pp) != "None":
+                pp = str(pp).strip()
+                poster_url = pp if pp.startswith("http") else f"https://image.tmdb.org/t/p/w342{pp}" if pp.startswith("/") else f"https://image.tmdb.org/t/p/w342/{pp}"
             return {
                 "id": mid,
                 "title": m.get("title", "Unknown"),
                 "poster_path": m.get("poster_path"),
+                "poster_url": poster_url,
                 "overview": (m.get("overview") or "")[:400],
                 "release_date": m.get("release_date"),
                 "vote_average": m.get("vote_average", 0),
@@ -458,6 +489,12 @@ async def get_movie_by_id(movie_id: int) -> Dict:
             }
     tmdb_m = _get_tmdb_movie(movie_id)
     if tmdb_m:
+        pp = tmdb_m.get("poster_path")
+        if pp and str(pp).strip():
+            pp = str(pp).strip()
+            tmdb_m["poster_url"] = pp if pp.startswith("http") else f"https://image.tmdb.org/t/p/w342{pp}" if pp.startswith("/") else f"https://image.tmdb.org/t/p/w342/{pp}"
+        else:
+            tmdb_m["poster_url"] = None
         return tmdb_m
     raise HTTPException(status_code=404, detail="Movie not found")
 

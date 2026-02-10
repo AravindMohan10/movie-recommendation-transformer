@@ -81,9 +81,11 @@ const HolographicGallery = ({ movies, onLike, onDislike, onFavorite, onReview, u
     setCurrentIndex(Math.min(slideIndex * MOVIES_PER_SLIDE, movies.length - 1));
   };
 
-  const handleButtonClick = (action, movieTitle, movieId, e) => {
+  const handleButtonClick = (action, movie, e) => {
     e.preventDefault();
     e.stopPropagation();
+    const movieId = movie?.id ?? movie?.movie_id;
+    const movieTitle = movie?.title;
     devLog('🔵 handleButtonClick called:', action, movieTitle, movieId);
     devLog('🔵 Handlers available:', { onLike: !!onLike, onDislike: !!onDislike, onFavorite: !!onFavorite });
     
@@ -112,12 +114,12 @@ const HolographicGallery = ({ movies, onLike, onDislike, onFavorite, onReview, u
       return newState;
     });
     
-    // Then call parent handlers
+    // Then call parent handlers (pass movie object for consistency)
     switch (action) {
       case 'like':
         if (onLike) {
           devLog('🔵 Calling onLike handler');
-          onLike(movieTitle);
+          onLike(movie);
         } else {
           console.error('❌ onLike handler is not defined!');
         }
@@ -125,7 +127,7 @@ const HolographicGallery = ({ movies, onLike, onDislike, onFavorite, onReview, u
       case 'dislike':
         if (onDislike) {
           devLog('🔵 Calling onDislike handler');
-          onDislike(movieTitle);
+          onDislike(movie);
         } else {
           console.error('❌ onDislike handler is not defined!');
         }
@@ -133,14 +135,14 @@ const HolographicGallery = ({ movies, onLike, onDislike, onFavorite, onReview, u
       case 'favorite':
         if (onFavorite) {
           devLog('🔵 Calling onFavorite handler');
-          onFavorite(movieTitle);
+          onFavorite(movie);
         } else {
           console.error('❌ onFavorite handler is not defined!');
         }
         break;
       case 'review':
         if (onReview) {
-          onReview(movieTitle);
+          onReview(movie);
         }
         break;
       default:
@@ -319,7 +321,7 @@ const HolographicGallery = ({ movies, onLike, onDislike, onFavorite, onReview, u
                         className={`action-button like ${isLiked ? 'active' : ''}`}
                         onClick={(e) => {
                           devLog('🖱️ LIKE BUTTON CLICKED for', movie.title, movieId);
-                          handleButtonClick('like', movie.title, movieId, e);
+                          handleButtonClick('like', movie, e);
                         }}
                         title={isLiked ? 'Liked' : 'Like'}
                         style={likeStyle}
@@ -335,7 +337,7 @@ const HolographicGallery = ({ movies, onLike, onDislike, onFavorite, onReview, u
                         className={`action-button dislike ${isDisliked ? 'active' : ''}`}
                         onClick={(e) => {
                           devLog('🖱️ DISLIKE BUTTON CLICKED for', movie.title, movieId);
-                          handleButtonClick('dislike', movie.title, movieId, e);
+                          handleButtonClick('dislike', movie, e);
                         }}
                         title={isDisliked ? 'Disliked' : 'Dislike'}
                         style={dislikeStyle}
@@ -352,7 +354,7 @@ const HolographicGallery = ({ movies, onLike, onDislike, onFavorite, onReview, u
                         className={`action-button favorite ${isFavorited ? 'active' : ''}`}
                         onClick={(e) => {
                           devLog('🖱️ FAVORITE BUTTON CLICKED for', movie.title, movieId);
-                          handleButtonClick('favorite', movie.title, movieId, e);
+                          handleButtonClick('favorite', movie, e);
                         }}
                         title={isFavorited ? 'Remove from Favorites' : 'Add to Favorites'}
                         style={favoriteStyle}

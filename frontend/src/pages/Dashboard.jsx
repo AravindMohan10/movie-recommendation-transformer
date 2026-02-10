@@ -107,6 +107,7 @@ export default function Dashboard() {
   const [loadingGenre, setLoadingGenre] = useState(false);
   const [hiddenGems, setHiddenGems] = useState([]);
   const [loadingHiddenGems, setLoadingHiddenGems] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(null);
 
   // When user selects a genre, fetch all movies in that genre from catalog (not filter recs)
   useEffect(() => {
@@ -236,12 +237,13 @@ export default function Dashboard() {
     }
   };
 
-  const fetchRecommendations = async (forceRefresh = false) => {
+  const fetchRecommendations = async () => {
     try {
       setLoadingRecommendations(true);
       
-      const data = await getRecommendations(10, forceRefresh);
+      const data = await getRecommendations(10);
       
+      setLastRefresh(data.last_refresh || null);
       // Track model source
       const isModelRecommendations = data.recommendations.length > 0 && 
         data.recommendations.some(m => m.confidence > 0.5 || m.predicted_rating > 0);
@@ -513,8 +515,10 @@ export default function Dashboard() {
     });
   };
 
-  const handleLike = async (movieTitle) => {
-    const movie = movies.find(m => m.title === movieTitle);
+  const handleLike = async (movieOrTitle) => {
+    const movie = typeof movieOrTitle === "object" && movieOrTitle
+      ? movieOrTitle
+      : [...movies, ...surpriseMovies].find(m => m.title === movieOrTitle);
     if (!movie) return;
     
     const movieId = movie.id || movie.movie_id;
@@ -591,8 +595,10 @@ export default function Dashboard() {
     }
   };
 
-  const handleDislike = async (movieTitle) => {
-    const movie = movies.find(m => m.title === movieTitle);
+  const handleDislike = async (movieOrTitle) => {
+    const movie = typeof movieOrTitle === "object" && movieOrTitle
+      ? movieOrTitle
+      : [...movies, ...surpriseMovies].find(m => m.title === movieOrTitle);
     if (!movie) return;
     
     const movieId = movie.id || movie.movie_id;
@@ -662,8 +668,10 @@ export default function Dashboard() {
     }
   };
 
-  const handleFavorite = async (movieTitle) => {
-    const movie = movies.find(m => m.title === movieTitle);
+  const handleFavorite = async (movieOrTitle) => {
+    const movie = typeof movieOrTitle === "object" && movieOrTitle
+      ? movieOrTitle
+      : [...movies, ...surpriseMovies].find(m => m.title === movieOrTitle);
     if (!movie) return;
     
     const movieId = movie.id || movie.movie_id;
@@ -1016,7 +1024,16 @@ export default function Dashboard() {
                 Your Recommendations
               </h2>
               <p className="text-gray-400 font-light">
-                Curated just for you
+                Curated just for you{lastRefresh ? ` · ${(() => {
+                  try {
+                    const d = new Date(lastRefresh);
+                    const now = new Date();
+                    const hrs = Math.floor((now - d) / 3600000);
+                    if (hrs < 1) return 'Updated recently';
+                    if (hrs < 24) return `Updated ${hrs}h ago`;
+                    return `Updated ${Math.floor(hrs / 24)}d ago`;
+                  } catch { return ''; }
+                })()}` : ' · Refreshes every 24h'}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -1025,19 +1042,6 @@ export default function Dashboard() {
                 onWatchlist={loadWatchlist}
                 isInWatchlist={(id) => watchlist.some((w) => w.movie_id === id)}
               />
-              <button
-                onClick={() => fetchRecommendations(true)}
-                disabled={loadingRecommendations}
-                title="Get new picks now (recommendations auto-refresh every 24h)"
-                className="px-4 py-2 bg-black/70 border border-teal-700 text-teal-200 rounded-lg font-medium hover:border-teal-500 hover:bg-teal-500/10 transition-all disabled:opacity-50 flex items-center gap-2"
-              >
-                {loadingRecommendations ? (
-                  <span className="w-4 h-4 border-2 border-teal-400 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                )}
-                New picks
-              </button>
               <button
                 onClick={handleSurpriseMe}
                 className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-purple-500/50 flex items-center gap-2"
@@ -1147,12 +1151,12 @@ export default function Dashboard() {
                     Like a few movies, add some to your watchlist, or try New picks. We’ll curate picks for you.
                   </div>
                   <button
-                    onClick={() => fetchRecommendations(true)}
+                    onClick={fetchRecommendations}
                     disabled={loadingRecommendations}
-                    title="Get new picks now"
+                    title="Retry loading recommendations"
                     className="px-6 py-3 bg-gradient-to-r from-teal-400 to-blue-500 text-white rounded-lg font-medium hover:scale-105 transition-all duration-300 disabled:opacity-50"
                   >
-                    Get new picks
+                    Try again
                   </button>
                 </div>
               )

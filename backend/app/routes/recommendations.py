@@ -146,6 +146,7 @@ async def get_recommendations(
             UserInteraction.user_id == current_user.user_id
         ).count()
         
+        last_refresh = None
         # Progressive enhancement: Adjust recommendation strategy based on user data
         # 0 interactions: Pure content-based (popular movies by genre preferences)
         # 1-5 interactions: Content-based + light collaborative signals
@@ -154,18 +155,32 @@ async def get_recommendations(
         
         # Get recommendations - model service handles progressive enhancement internally
         # Pass db session so it can reload fresh interactions from database
-        # In development, allow force_refresh to bypass cache for testing
         try:
-            recommendations = model_service.get_recommendations(
+            recommendations, last_refresh = model_service.get_recommendations(
                 current_user.user_id, 
                 limit, 
                 interaction_count,
                 db_session=db,  # Pass db session to reload interactions from database
-                force_refresh=force_refresh  # Only works in dev mode
+                force_refresh=force_refresh
             )
+            if recommendations and last_refresh:
+                # Persist last_refresh for display (merge with existing onboarding data)
+                status = _get_onboarding_status_db(db, current_user.user_id)
+                data = status.get("data", {}) or {}
+                if not isinstance(data, dict):
+                    data = {}
+                data = dict(data)
+                data["last_recommendation_refresh"] = last_refresh
+                _upsert_onboarding_status(db, current_user.user_id, data=data)
+        except (ValueError, TypeError) as unpack_error:
+            # Handle old model return format (list only)
+            logger.warning("Model returned unexpected format: %s", unpack_error)
+            recommendations = []
+            last_refresh = None
         except Exception as rec_error:
             logger.warning("Failed to get recommendations: %s", rec_error)
             recommendations = []
+            last_refresh = None
         
         # If no recommendations, try fallback
         if not recommendations or len(recommendations) == 0:
@@ -176,6 +191,8 @@ async def get_recommendations(
                     current_user.user_id, limit, db_session=db
                 )
                 logger.info(f"Fallback returned {len(recommendations)} recommendations")
+                if recommendations and last_refresh is None:
+                    last_refresh = datetime.now(timezone.utc).isoformat()
             except Exception as fallback_error:
                 logger.error(f"Fallback also failed: {fallback_error}", exc_info=True)
                 recommendations = []
@@ -185,6 +202,7 @@ async def get_recommendations(
             return {
                 "recommendations": [],
                 "onboarding_required": not onboarding_completed,
+                "last_refresh": None,
                 "message": "No recommendations available. Please ensure movie data files are present in data/raw/",
                 "error": "movie_data_empty"
             }
@@ -336,12 +354,20 @@ async def get_recommendations(
             logger.warning(f"Failed to get user interactions: {interactions_error}")
             total_interactions = 0
         
+        # Fallback: get last_refresh from DB if not from cache (existing users)
+        if last_refresh is None:
+            status = _get_onboarding_status_db(db, current_user.user_id)
+            data = status.get("data") or {}
+            if isinstance(data, dict):
+                last_refresh = data.get("last_recommendation_refresh")
+        
         return {
             "recommendations": enriched_recommendations,
             "onboarding_required": not onboarding_completed,
             "onboarding_completed": onboarding_completed,
             "total_interactions": total_interactions,
             "model_source": "ensemble" if is_model_recommendations else "fallback",
+            "last_refresh": last_refresh,
             "message": "Personalized recommendations based on your preferences" if onboarding_completed else "Popular recommendations - complete onboarding for personalized suggestions"
         }
         

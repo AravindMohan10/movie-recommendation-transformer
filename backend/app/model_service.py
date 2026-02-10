@@ -6,7 +6,7 @@ import json
 import os
 import time
 from typing import List, Dict, Optional, Tuple, Any, Set
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import logging
 from pathlib import Path
@@ -309,7 +309,7 @@ class MovieRecommendationModel:
                 self._last_shown = {}
             self._last_shown[user_id] = ids
 
-    def get_recommendations(self, user_id: int, n_recommendations: int = 10, interaction_count: int = 0, db_session=None, force_refresh: bool = False) -> List[Dict]:
+    def get_recommendations(self, user_id: int, n_recommendations: int = 10, interaction_count: int = 0, db_session=None, force_refresh: bool = False) -> Tuple[List[Dict], Optional[str]]:
         """
         Get top movie recommendations for a user.
         
@@ -336,13 +336,19 @@ class MovieRecommendationModel:
             cached = self._get_cached(cache_key)
             if cached:
                 try:
-                    result = json.loads(cached)
+                    parsed = json.loads(cached)
+                    if isinstance(parsed, list):
+                        result = parsed
+                        last_refresh = None
+                    else:
+                        result = parsed.get("recs", [])
+                        last_refresh = parsed.get("last_refresh")
                     ids = [r.get("movie_id") or r.get("id") for r in result if r.get("movie_id") or r.get("id")]
                     if ids:
                         self._set_last_shown(user_id, ids)
                     elapsed = (time.time() - start_time) * 1000
                     logger.info(f"✅ Recommendations from cache: {elapsed:.2f}ms (TTL: {CACHE_TTL}s)")
-                    return result
+                    return result, last_refresh
                 except Exception:
                     pass
         
@@ -355,10 +361,11 @@ class MovieRecommendationModel:
                 )
                 if fallback_recs:
                     self._set_last_shown(user_id, [r["movie_id"] for r in fallback_recs])
-                return fallback_recs
+                now_iso = datetime.now(timezone.utc).isoformat()
+                return fallback_recs, now_iso
             except Exception as fallback_error:
                 logger.error(f"Fallback recommendations also failed: {fallback_error}", exc_info=True)
-                return []
+                return [], None
         
         # Before generating recommendations, reload all user interactions from database
         if db_session:
@@ -461,19 +468,22 @@ class MovieRecommendationModel:
             ids = [r["movie_id"] for r in out]
             if ids:
                 self._set_last_shown(user_id, ids)
-            self._set_cached(cache_key, json.dumps(out), ttl=CACHE_TTL)
+            now_iso = datetime.now(timezone.utc).isoformat()
+            self._set_cached(cache_key, json.dumps({"recs": out, "last_refresh": now_iso}), ttl=CACHE_TTL)
             elapsed = (time.time() - start_time) * 1000
             ttl_hours = CACHE_TTL / 3600 if CACHE_TTL >= 3600 else CACHE_TTL / 60
             ttl_unit = "h" if CACHE_TTL >= 3600 else "min"
             logger.info(f"⚡ Generated new recommendations: {elapsed:.2f}ms (cached for {ttl_hours:.1f}{ttl_unit})")
-            return out
+            return out, now_iso
             
         except Exception as e:
             logger.error(f"Error getting recommendations: {e}", exc_info=True)
             exclude_last = self._get_last_shown(user_id)
-            return self._get_fallback_recommendations(
+            fallback = self._get_fallback_recommendations(
                 user_id, n_recommendations, exclude_ids=exclude_last, db_session=db_session
             )
+            now_iso = datetime.now(timezone.utc).isoformat()
+            return fallback, now_iso
     
     def _reload_user_interactions_from_db(self, user_id: int, db_session) -> None:
         """

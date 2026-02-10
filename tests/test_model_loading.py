@@ -33,7 +33,7 @@ def test_model_loading():
 def generate_sample_recommendations(model_service, user_id=1, n_recommendations=10):
     """Generate sample recommendations for testing."""
     try:
-        recommendations = model_service.get_recommendations(user_id, n_recommendations)
+        recommendations, _ = model_service.get_recommendations(user_id, n_recommendations)
         if recommendations:
             logger.info("Generated %d recommendations for user_id=%s", len(recommendations), user_id)
         return recommendations
