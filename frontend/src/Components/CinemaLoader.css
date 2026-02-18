@@ -1,0 +1,212 @@
+.cinema-loader {
+  width: 100%;
+  padding: 2rem 0 3rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.cinema-loader__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  max-width: 100%;
+}
+
+/* Director's slate */
+.cinema-loader__slate {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cinema-loader__slate-top {
+  width: 140px;
+  height: 24px;
+  background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+  border: 1px solid rgba(1, 255, 233, 0.3);
+  border-radius: 4px 4px 0 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.cinema-loader__slate-board {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(145deg, #0f0f0f, #1a1a1a);
+  border: 1px solid rgba(1, 255, 233, 0.25);
+  border-top: none;
+  font-family: "Courier New", monospace;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+}
+
+.cinema-loader__slate-scene {
+  color: #01ffe9;
+}
+
+.cinema-loader__slate-dot {
+  color: rgba(1, 255, 233, 0.6);
+  font-size: 0.7rem;
+}
+
+.cinema-loader__slate-take {
+  color: #94a3b8;
+}
+
+.cinema-loader__slate-rec {
+  position: absolute;
+  top: 50%;
+  right: -2rem;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #ef4444;
+  letter-spacing: 0.05em;
+}
+
+.cinema-loader__slate-rec-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: cinema-loader-rec-blink 1s ease-in-out infinite;
+}
+
+@keyframes cinema-loader-rec-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Popcorn kettle */
+.cinema-loader__popcorn {
+  position: relative;
+}
+
+.cinema-loader__kettle {
+  position: relative;
+  width: 100px;
+  height: 110px;
+}
+
+.cinema-loader__kettle-body {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70px;
+  height: 65px;
+  background: linear-gradient(145deg, #fbbf24 0%, #d97706 50%, #b45309 100%);
+  border-radius: 50% 50% 45% 45%;
+  border: 2px solid rgba(251, 191, 36, 0.5);
+  box-shadow:
+    inset 0 4px 12px rgba(255, 255, 255, 0.2),
+    0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.cinema-loader__kettle-handle {
+  position: absolute;
+  top: 25%;
+  right: -18px;
+  width: 22px;
+  height: 14px;
+  border: 4px solid #92400e;
+  border-left: none;
+  border-radius: 0 12px 12px 0;
+}
+
+.cinema-loader__kettle-top {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 55px;
+  height: 22px;
+  background: linear-gradient(180deg, #fcd34d 0%, #fbbf24 100%);
+  border-radius: 50% 50% 0 0;
+  border: 2px solid rgba(251, 191, 36, 0.6);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Popping kernels */
+.cinema-loader__kernel {
+  position: absolute;
+  left: var(--kernel-x, 50%);
+  top: var(--kernel-y, 50%);
+  transform: translate(-50%, -50%);
+  font-size: 1rem;
+  animation: cinema-loader-pop 1.2s ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+  transform-origin: center bottom;
+}
+
+@keyframes cinema-loader-pop {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(0.6) translateY(0);
+    opacity: 0.7;
+  }
+  25% {
+    transform: translate(-50%, -50%) scale(1.1) translateY(-8px);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1) translateY(-4px);
+    opacity: 1;
+  }
+  75% {
+    transform: translate(-50%, -50%) scale(0.9) translateY(-2px);
+    opacity: 0.9;
+  }
+}
+
+/* Rotating text */
+.cinema-loader__text {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #94a3b8;
+  text-align: center;
+  min-height: 1.5rem;
+  max-width: 360px;
+}
+
+/* Skeleton row - subtle preview of cards to come */
+.cinema-loader__skeleton-row {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  opacity: 0.4;
+}
+
+.cinema-loader__skeleton-card {
+  width: 180px;
+  height: 270px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  border-radius: 12px;
+  animation: cinema-loader-shimmer 2s ease-in-out infinite;
+}
+
+.cinema-loader__skeleton-card:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.cinema-loader__skeleton-card:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes cinema-loader-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

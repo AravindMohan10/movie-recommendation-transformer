@@ -295,21 +295,26 @@ def _release_year(movie_data: dict) -> Optional[int]:
 INDIAN_GENRE = "Indian"
 
 def _is_indian_movie(m: dict) -> bool:
-    """True if movie has India in production_countries."""
+    """True if movie has India in production_countries or production_companies.origin_country."""
+    # Check production_countries
     pc = m.get("production_countries")
-    if not pc:
-        return False
-    if isinstance(pc, list):
-        for c in pc:
-            if isinstance(c, dict):
-                name = (c.get("name") or "").upper()
-                iso = (c.get("iso_3166_1") or "").upper()
-                if "INDIA" in name or iso == "IN":
+    if pc:
+        if isinstance(pc, list):
+            for c in pc:
+                if isinstance(c, dict):
+                    name = (c.get("name") or "").upper()
+                    iso = (c.get("iso_3166_1") or "").upper()
+                    if "INDIA" in name or iso == "IN":
+                        return True
+                elif isinstance(c, str) and "india" in c.lower():
                     return True
-            elif isinstance(c, str) and "india" in c.lower():
+        elif isinstance(pc, str):
+            if "india" in pc.lower():
                 return True
-    elif isinstance(pc, str):
-        return "india" in pc.lower()
+    # Fallback: check production_companies for origin_country "IN" (co-productions)
+    for comp in m.get("production_companies") or []:
+        if isinstance(comp, dict) and (comp.get("origin_country") or "").upper() == "IN":
+            return True
     return False
 
 
@@ -322,6 +327,9 @@ async def get_genres() -> Dict:
 # Quality controls for by-genre: avoid obscure/niche titles with inflated ratings
 MIN_VOTE_COUNT_BY_GENRE = 100   # only movies with at least this many votes
 MIN_VOTE_AVERAGE_BY_GENRE = 6.0  # minimum rating to include
+# Indian films often have fewer TMDB votes; use relaxed thresholds
+MIN_VOTE_COUNT_INDIAN = 20
+MIN_VOTE_AVERAGE_INDIAN = 5.5
 BAYESIAN_MIN_VOTES = 100         # for weighted score (pull low-vote toward global avg)
 GLOBAL_AVG = 7.0                 # prior for weighted score
 
@@ -362,9 +370,11 @@ async def get_movies_by_genre(
                 continue
         vote_count = (m.get("vote_count") or 0) or 0
         vote_avg = (m.get("vote_average") or 0) or 0
-        if vote_count < MIN_VOTE_COUNT_BY_GENRE:
+        min_votes = MIN_VOTE_COUNT_INDIAN if is_indian_genre else MIN_VOTE_COUNT_BY_GENRE
+        min_avg = MIN_VOTE_AVERAGE_INDIAN if is_indian_genre else MIN_VOTE_AVERAGE_BY_GENRE
+        if vote_count < min_votes:
             continue
-        if vote_avg < MIN_VOTE_AVERAGE_BY_GENRE:
+        if vote_avg < min_avg:
             continue
         if not is_documentary_genre and _is_documentary(m):
             continue

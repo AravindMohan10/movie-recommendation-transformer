@@ -7,6 +7,7 @@ import HowItWorksModal from "../Components/HowItWorksModal";
 import OnboardingFlow from "../Components/OnboardingFlow";
 import DashboardSidebar from "../Components/DashboardSidebar";
 import SurpriseMeModal from "../Components/SurpriseMeModal";
+import CinemaLoader from "../Components/CinemaLoader";
 import MovieReviewsModal from "../Components/MovieReviewsModal";
 import MovieSearch from "../Components/MovieSearch";
 import { getOnboardingStatus, getRecommendations, getSurpriseMe, getGenres, getMoviesByGenre, getHiddenGems, completeOnboarding } from "../Utils/api";
@@ -1106,21 +1107,7 @@ export default function Dashboard() {
 
           <div className="w-full">
             {(selectedGenre == null ? loadingRecommendations : loadingGenre) ? (
-              <div className="flex gap-6 overflow-hidden pb-4">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div
-                    key={i}
-                    className="flex-shrink-0 w-[320px] h-[600px] rounded-2xl bg-white/5 border border-teal-500/20 animate-pulse"
-                  >
-                    <div className="w-full h-[450px] bg-white/10 rounded-t-2xl" />
-                    <div className="p-4 space-y-3">
-                      <div className="h-5 bg-white/10 rounded w-3/4" />
-                      <div className="h-4 bg-white/10 rounded w-1/2" />
-                      <div className="h-4 bg-white/10 rounded w-full" />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <CinemaLoader />
             ) : selectedGenre == null ? (
               movies.length > 0 ? (
                 <HolographicGallery
