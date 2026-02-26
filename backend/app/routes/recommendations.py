@@ -164,13 +164,16 @@ async def get_recommendations(
                 force_refresh=force_refresh
             )
             if recommendations and last_refresh:
-                # Persist last_refresh for display (merge with existing onboarding data)
+                # Persist last_refresh and last_shown_movie_ids (survives restarts; avoids same recs on refresh)
                 status = _get_onboarding_status_db(db, current_user.user_id)
                 data = status.get("data", {}) or {}
                 if not isinstance(data, dict):
                     data = {}
                 data = dict(data)
                 data["last_recommendation_refresh"] = last_refresh
+                ids = [r.get("movie_id") or r.get("id") for r in recommendations if r.get("movie_id") or r.get("id")]
+                if ids:
+                    data["last_shown_movie_ids"] = ids
                 _upsert_onboarding_status(db, current_user.user_id, data=data)
         except (ValueError, TypeError) as unpack_error:
             # Handle old model return format (list only)

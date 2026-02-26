@@ -291,8 +291,22 @@ class MovieRecommendationModel:
 
     LAST_SHOWN_TTL = 172800  # 48h
 
-    def _get_last_shown(self, user_id: int) -> List[int]:
-        """Last batch of movie IDs we showed (exclude on next 24h refresh)."""
+    def _get_last_shown(self, user_id: int, db_session=None) -> List[int]:
+        """Last batch of movie IDs we showed (exclude on next 24h refresh). Prefers DB when db_session provided (survives restarts)."""
+        # When db_session available, read from OnboardingStatus.data (persists across restarts)
+        if db_session is not None:
+            try:
+                from .models import OnboardingStatus
+                row = db_session.query(OnboardingStatus).filter(OnboardingStatus.user_id == user_id).first()
+                if row and row.data:
+                    data = json.loads(row.data) if isinstance(row.data, str) else (row.data or {})
+                    ids = data.get("last_shown_movie_ids") or []
+                    out = [int(x) for x in ids if x is not None]
+                    if out:
+                        return out
+            except Exception as e:
+                logger.debug(f"Could not load last_shown from DB: {e}")
+        # Fallback: Redis or in-memory
         key = f"last_shown:{user_id}"
         if self.use_redis and self.redis_client:
             try:
@@ -306,7 +320,7 @@ class MovieRecommendationModel:
         out = getattr(self, "_last_shown", {}).get(user_id) or []
         return list(out)
 
-    def _set_last_shown(self, user_id: int, movie_ids: List[int]) -> None:
+    def _set_last_shown(self, user_id: int, movie_ids: List[int], db_session=None) -> None:
         key = f"last_shown:{user_id}"
         ids = [int(x) for x in movie_ids if x is not None]
         if self.use_redis and self.redis_client:
@@ -318,6 +332,29 @@ class MovieRecommendationModel:
             if not hasattr(self, "_last_shown"):
                 self._last_shown = {}
             self._last_shown[user_id] = ids
+        # Persist to DB when available (survives restarts when Redis not available on Fly)
+        if db_session is not None and ids:
+            try:
+                from .models import OnboardingStatus
+                row = db_session.query(OnboardingStatus).filter(OnboardingStatus.user_id == user_id).first()
+                data = {}
+                if row and row.data:
+                    data = json.loads(row.data) if isinstance(row.data, str) else (row.data or {})
+                data = dict(data) if isinstance(data, dict) else {}
+                data["last_shown_movie_ids"] = ids
+                if row:
+                    row.data = json.dumps(data)
+                    row.updated_at = datetime.now(timezone.utc)
+                else:
+                    new_row = OnboardingStatus(user_id=user_id, data=json.dumps(data))
+                    db_session.add(new_row)
+                db_session.commit()
+            except Exception as e:
+                logger.debug(f"Could not persist last_shown to DB: {e}")
+                try:
+                    db_session.rollback()
+                except Exception:
+                    pass
 
     def get_recommendations(self, user_id: int, n_recommendations: int = 10, interaction_count: int = 0, db_session=None, force_refresh: bool = False) -> Tuple[List[Dict], Optional[str]]:
         """
@@ -355,7 +392,7 @@ class MovieRecommendationModel:
                         last_refresh = parsed.get("last_refresh")
                     ids = [r.get("movie_id") or r.get("id") for r in result if r.get("movie_id") or r.get("id")]
                     if ids:
-                        self._set_last_shown(user_id, ids)
+                        self._set_last_shown(user_id, ids, db_session=db_session)
                     elapsed = (time.time() - start_time) * 1000
                     logger.info(f"✅ Recommendations from cache: {elapsed:.2f}ms (TTL: {CACHE_TTL}s)")
                     return result, last_refresh
@@ -365,12 +402,12 @@ class MovieRecommendationModel:
         if self.engine is None:
             logger.warning("Model not loaded, using fallback recommendations")
             try:
-                exclude_last = self._get_last_shown(user_id)
+                exclude_last = self._get_last_shown(user_id, db_session=db_session)
                 fallback_recs = self._get_fallback_recommendations(
                     user_id, n_recommendations, exclude_ids=exclude_last, db_session=db_session
                 )
                 if fallback_recs:
-                    self._set_last_shown(user_id, [r["movie_id"] for r in fallback_recs])
+                    self._set_last_shown(user_id, [r["movie_id"] for r in fallback_recs], db_session=db_session)
                 now_iso = datetime.now(timezone.utc).isoformat()
                 return fallback_recs, now_iso
             except Exception as fallback_error:
@@ -387,7 +424,7 @@ class MovieRecommendationModel:
             logger.warning("No db_session provided - recommendations may not include latest interactions")
 
         try:
-            exclude_last_shown = self._get_last_shown(user_id)
+            exclude_last_shown = self._get_last_shown(user_id, db_session=db_session)
             if exclude_last_shown:
                 logger.info(f"Excluding {len(exclude_last_shown)} last-shown movies from this refresh")
             valid_movie_ids = self._get_valid_movie_ids(min_year=MAIN_REC_MIN_YEAR)
@@ -477,7 +514,7 @@ class MovieRecommendationModel:
             out = formatted_recs[:n_recommendations]
             ids = [r["movie_id"] for r in out]
             if ids:
-                self._set_last_shown(user_id, ids)
+                self._set_last_shown(user_id, ids, db_session=db_session)
             now_iso = datetime.now(timezone.utc).isoformat()
             self._set_cached(cache_key, json.dumps({"recs": out, "last_refresh": now_iso}), ttl=CACHE_TTL)
             elapsed = (time.time() - start_time) * 1000
@@ -488,7 +525,7 @@ class MovieRecommendationModel:
             
         except Exception as e:
             logger.error(f"Error getting recommendations: {e}", exc_info=True)
-            exclude_last = self._get_last_shown(user_id)
+            exclude_last = self._get_last_shown(user_id, db_session=db_session)
             fallback = self._get_fallback_recommendations(
                 user_id, n_recommendations, exclude_ids=exclude_last, db_session=db_session
             )
