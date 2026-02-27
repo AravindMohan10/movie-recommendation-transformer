@@ -231,25 +231,35 @@ class MovieRecommendationModel:
                 logger.error(f"Failed to load movie data: {fallback_error}", exc_info=True)
     
     def _get_cached(self, key: str) -> Optional[str]:
-        """Get value from cache (Redis or in-memory)"""
+        """Get value from cache (Redis or in-memory). In-memory entries expire by TTL."""
         if self.use_redis and self.redis_client:
             try:
                 return self.redis_client.get(key)
             except Exception as e:
                 logger.warning(f"Redis get failed: {e}")
                 return None
-        else:
-            return self._in_memory_cache.get(key)
-    
+        entry = self._in_memory_cache.get(key)
+        if entry is None:
+            return None
+        # In-memory: store (value, expiry_ts) to enforce TTL
+        if isinstance(entry, tuple):
+            value, expiry = entry
+            if time.time() > expiry:
+                self._in_memory_cache.pop(key, None)
+                return None
+            return value
+        return entry  # legacy plain string
+
     def _set_cached(self, key: str, value: str, ttl: int = 3600):
-        """Set value in cache (Redis or in-memory)"""
+        """Set value in cache (Redis or in-memory). In-memory uses TTL for expiry."""
         if self.use_redis and self.redis_client:
             try:
                 self.redis_client.setex(key, ttl, value)
             except Exception as e:
                 logger.warning(f"Redis set failed: {e}")
         else:
-            self._in_memory_cache[key] = value
+            expiry = time.time() + ttl
+            self._in_memory_cache[key] = (value, expiry)
     
     def _delete_cached(self, key: str):
         """Delete value from cache"""
