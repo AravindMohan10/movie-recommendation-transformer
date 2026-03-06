@@ -83,3 +83,20 @@ class OnboardingStatus(Base):
     stage = Column(Integer, nullable=True)
     data = Column(Text, nullable=True)  # JSON string of onboarding preferences/progress
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class RecommendationSnapshot(Base):
+    """Cached recommendation sets per user (e.g., main grid, hidden gems) with 24h TTL."""
+    __tablename__ = "recommendation_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    kind = Column(String(50), nullable=False, default="primary")  # e.g. "primary", "hidden_gems"
+    data = Column(Text, nullable=False)  # JSON payload with recommendations + metadata
+    generated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    metadata_json = Column(Text, nullable=True)  # optional extra fields (limit, model info, etc.)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "kind", name="uq_reco_snapshot_user_kind"),
+    )

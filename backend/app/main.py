@@ -99,9 +99,19 @@ def _sync_startup():
     """Blocking init: run in a thread so the event loop is not blocked and uvicorn can bind to 8080 immediately."""
     try:
         from .database import Base, engine
-        from .models import User, UserInteraction, Watchlist, PasswordResetToken, NewsArticle, OnboardingStatus
+        from .models import (
+            User,
+            UserInteraction,
+            Watchlist,
+            PasswordResetToken,
+            NewsArticle,
+            OnboardingStatus,
+            RecommendationSnapshot,
+        )
         Base.metadata.create_all(bind=engine)
-        logger.info("Database tables initialized (Users, UserInteractions, Watchlist, PasswordResetToken, NewsArticle, OnboardingStatus)")
+        logger.info(
+            "Database tables initialized (Users, UserInteractions, Watchlist, PasswordResetToken, NewsArticle, OnboardingStatus, RecommendationSnapshot)"
+        )
     except Exception as e:
         logger.exception("Database initialization error: %s", e)
     try:

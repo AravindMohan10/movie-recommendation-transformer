@@ -2,7 +2,7 @@ import threading
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
 from typing import List, Dict, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from sqlalchemy.exc import IntegrityError
 import json
 import sys
@@ -14,7 +14,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from ..database import get_db
-from ..models import User, OnboardingStatus
+from ..models import User, OnboardingStatus, RecommendationSnapshot
 from ..auth import get_current_user
 from ..onboarding_service import onboarding_service
 from ..limiter import limiter
@@ -84,6 +84,84 @@ def _sanitize_rec_poster(rec: dict) -> dict:
     return out
 
 
+def _load_snapshot(db: Session, user_id: int, kind: str, required_limit: Optional[int] = None) -> Dict[str, Optional[object]]:
+    """Load a valid snapshot payload if it exists and has not expired."""
+    snapshot = (
+        db.query(RecommendationSnapshot)
+        .filter(
+            RecommendationSnapshot.user_id == user_id,
+            RecommendationSnapshot.kind == kind,
+        )
+        .first()
+    )
+    if not snapshot:
+        return {"payload": None, "record": None}
+
+    now = datetime.now(timezone.utc)
+    if not snapshot.expires_at or snapshot.expires_at <= now:
+        return {"payload": None, "record": snapshot}
+
+    metadata = {}
+    if snapshot.metadata_json:
+        try:
+            metadata = json.loads(snapshot.metadata_json)
+        except Exception as e:
+            logger.debug("Failed to parse snapshot metadata for user %s kind %s: %s", user_id, kind, e)
+
+    if required_limit is not None:
+        stored_limit = metadata.get("limit")
+        if stored_limit is not None and int(stored_limit) != int(required_limit):
+            return {"payload": None, "record": snapshot}
+
+    try:
+        payload = json.loads(snapshot.data or "{}")
+        return {"payload": payload, "record": snapshot}
+    except Exception as e:
+        logger.debug("Failed to parse snapshot data for user %s kind %s: %s", user_id, kind, e)
+        return {"payload": None, "record": snapshot}
+
+
+def _save_snapshot(
+    db: Session,
+    user_id: int,
+    kind: str,
+    payload: Dict,
+    ttl_seconds: int,
+    metadata: Optional[Dict] = None,
+) -> Optional[RecommendationSnapshot]:
+    """Create or update a snapshot record."""
+    ttl_seconds = int(ttl_seconds or 0)
+    if ttl_seconds <= 0:
+        ttl_seconds = 60  # minimum 1 minute to avoid immediate expiration
+
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(seconds=ttl_seconds)
+
+    snapshot = (
+        db.query(RecommendationSnapshot)
+        .filter(
+            RecommendationSnapshot.user_id == user_id,
+            RecommendationSnapshot.kind == kind,
+        )
+        .first()
+    )
+    try:
+        if not snapshot:
+            snapshot = RecommendationSnapshot(user_id=user_id, kind=kind)
+            db.add(snapshot)
+        snapshot.data = json.dumps(payload or {})
+        snapshot.generated_at = now
+        snapshot.expires_at = expires_at
+        snapshot.metadata_json = json.dumps(metadata) if metadata else None
+        db.commit()
+        db.refresh(snapshot)
+        return snapshot
+    except Exception as e:
+        logger.warning("Failed to save recommendation snapshot (user=%s kind=%s): %s", user_id, kind, e)
+        db.rollback()
+        return None
+
+
 def _upsert_onboarding_status(
     db: Session,
     user_id: int,
@@ -146,60 +224,100 @@ async def get_recommendations(
             UserInteraction.user_id == current_user.user_id
         ).count()
         
+        # Check cached snapshot (24h TTL) unless force_refresh was requested
+        snapshot_info = (
+            _load_snapshot(db, current_user.user_id, "primary", required_limit=limit)
+            if not force_refresh
+            else {"payload": None, "record": None}
+        )
+        snapshot_payload = snapshot_info.get("payload")
+        snapshot_record = snapshot_info.get("record")
+
+        use_snapshot = snapshot_payload is not None
+        recommendations = []
         last_refresh = None
-        # Progressive enhancement: Adjust recommendation strategy based on user data
-        # 0 interactions: Pure content-based (popular movies by genre preferences)
-        # 1-5 interactions: Content-based + light collaborative signals
-        # 6-15 interactions: Balanced hybrid
-        # 16+ interactions: Full ensemble with all models
-        
-        # Get recommendations - model service handles progressive enhancement internally
-        # Pass db session so it can reload fresh interactions from database
-        try:
-            recommendations, last_refresh = model_service.get_recommendations(
-                current_user.user_id, 
-                limit, 
-                interaction_count,
-                db_session=db,  # Pass db session to reload interactions from database
-                force_refresh=force_refresh
+        snapshot_expires_at_iso = None
+
+        if use_snapshot:
+            recommendations = snapshot_payload.get("recommendations", []) or []
+            last_refresh = (
+                snapshot_payload.get("last_refresh")
+                or (snapshot_record.generated_at.isoformat() if snapshot_record and snapshot_record.generated_at else None)
             )
-            if recommendations and last_refresh:
-                # Persist last_refresh and last_shown_movie_ids (survives restarts; avoids same recs on refresh)
-                status = _get_onboarding_status_db(db, current_user.user_id)
-                data = status.get("data", {}) or {}
-                if not isinstance(data, dict):
-                    data = {}
-                data = dict(data)
-                data["last_recommendation_refresh"] = last_refresh
-                ids = [r.get("movie_id") or r.get("id") for r in recommendations if r.get("movie_id") or r.get("id")]
-                if ids:
-                    data["last_shown_movie_ids"] = ids
-                _upsert_onboarding_status(db, current_user.user_id, data=data)
-        except (ValueError, TypeError) as unpack_error:
-            # Handle old model return format (list only)
-            logger.warning("Model returned unexpected format: %s", unpack_error)
-            recommendations = []
-            last_refresh = None
-        except Exception as rec_error:
-            logger.warning("Failed to get recommendations: %s", rec_error)
-            recommendations = []
-            last_refresh = None
-        
-        # If no recommendations, try fallback
-        if not recommendations or len(recommendations) == 0:
-            logger.warning(f"No recommendations returned for user {current_user.user_id}, trying fallback...")
+            if snapshot_record and snapshot_record.expires_at:
+                snapshot_expires_at_iso = snapshot_record.expires_at.isoformat()
+
+        if not use_snapshot:
+            # Progressive enhancement: Adjust recommendation strategy based on user data
+            # 0 interactions: Pure content-based (popular movies by genre preferences)
+            # 1-5 interactions: Content-based + light collaborative signals
+            # 6-15 interactions: Balanced hybrid
+            # 16+ interactions: Full ensemble with all models
             try:
-                # Force fallback recommendations
-                recommendations = model_service._get_fallback_recommendations(
-                    current_user.user_id, limit, db_session=db
+                recommendations, last_refresh = model_service.get_recommendations(
+                    current_user.user_id,
+                    limit,
+                    interaction_count,
+                    db_session=db,  # Pass db session to reload interactions from database
+                    force_refresh=force_refresh,
                 )
-                logger.info(f"Fallback returned {len(recommendations)} recommendations")
-                if recommendations and last_refresh is None:
-                    last_refresh = datetime.now(timezone.utc).isoformat()
-            except Exception as fallback_error:
-                logger.error(f"Fallback also failed: {fallback_error}", exc_info=True)
+                if recommendations and last_refresh:
+                    # Persist last_refresh and last_shown_movie_ids (survives restarts; avoids same recs on refresh)
+                    status = _get_onboarding_status_db(db, current_user.user_id)
+                    data = status.get("data", {}) or {}
+                    if not isinstance(data, dict):
+                        data = {}
+                    data = dict(data)
+                    data["last_recommendation_refresh"] = last_refresh
+                    ids = [r.get("movie_id") or r.get("id") for r in recommendations if r.get("movie_id") or r.get("id")]
+                    if ids:
+                        data["last_shown_movie_ids"] = ids
+                    _upsert_onboarding_status(db, current_user.user_id, data=data)
+            except (ValueError, TypeError) as unpack_error:
+                # Handle old model return format (list only)
+                logger.warning("Model returned unexpected format: %s", unpack_error)
                 recommendations = []
-        
+                last_refresh = None
+            except Exception as rec_error:
+                logger.warning("Failed to get recommendations: %s", rec_error)
+                recommendations = []
+                last_refresh = None
+
+            if not recommendations:
+                logger.warning(f"No recommendations returned for user {current_user.user_id}, trying fallback...")
+                try:
+                    recommendations = model_service._get_fallback_recommendations(
+                        current_user.user_id, limit, db_session=db
+                    )
+                    logger.info(f"Fallback returned {len(recommendations)} recommendations")
+                    if recommendations and last_refresh is None:
+                        last_refresh = datetime.now(timezone.utc).isoformat()
+                except Exception as fallback_error:
+                    logger.error(f"Fallback also failed: {fallback_error}", exc_info=True)
+                    recommendations = []
+
+            # Persist newly generated snapshot so the next 24h reuse it
+            if recommendations:
+                snapshot_payload_to_store = {
+                    "recommendations": recommendations,
+                    "last_refresh": last_refresh or datetime.now(timezone.utc).isoformat(),
+                }
+                metadata = {"limit": limit}
+                ttl_seconds = getattr(model_service, "CACHE_TTL", 86400)
+                expected_expiry = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds or 0)
+                saved_snapshot = _save_snapshot(
+                    db,
+                    current_user.user_id,
+                    "primary",
+                    snapshot_payload_to_store,
+                    ttl_seconds=ttl_seconds,
+                    metadata=metadata,
+                )
+                if saved_snapshot and saved_snapshot.expires_at:
+                    snapshot_expires_at_iso = saved_snapshot.expires_at.isoformat()
+                else:
+                    snapshot_expires_at_iso = expected_expiry.isoformat()
+
         # If still no recommendations, return helpful message
         if not recommendations or len(recommendations) == 0:
             return {
@@ -371,6 +489,7 @@ async def get_recommendations(
             "total_interactions": total_interactions,
             "model_source": "ensemble" if is_model_recommendations else "fallback",
             "last_refresh": last_refresh,
+            "expires_at": snapshot_expires_at_iso,
             "message": "Personalized recommendations based on your preferences" if onboarding_completed else "Popular recommendations - complete onboarding for personalized suggestions"
         }
         
@@ -986,6 +1105,8 @@ async def get_hidden_gems(
     request: Request,
     current_user: User = Depends(get_current_user),
     limit: int = Query(15, ge=1, le=50),
+    force_refresh: bool = False,
+    db: Session = Depends(get_db),
 ):
     """Hidden gems: high quality, low popularity, configurable filters. Serendipity score = relevance * vote_quality * (1 - norm_popularity)."""
     from ..hidden_gems_config import (
@@ -998,6 +1119,32 @@ async def get_hidden_gems(
         movie_data = model_service.movie_data or {}
         if not movie_data:
             return {"recommendations": [], "config": get_hidden_gems_config(), "total": 0}
+
+        snapshot_info = (
+            _load_snapshot(db, current_user.user_id, "hidden_gems", required_limit=limit)
+            if not force_refresh
+            else {"payload": None, "record": None}
+        )
+        snapshot_payload = snapshot_info.get("payload")
+        snapshot_record = snapshot_info.get("record")
+
+        if snapshot_payload:
+            recs = snapshot_payload.get("recommendations", []) or []
+            config = snapshot_payload.get("config") or get_hidden_gems_config()
+            total = snapshot_payload.get("total", len(recs))
+            last_refresh = snapshot_payload.get("last_refresh") or (
+                snapshot_record.generated_at.isoformat() if snapshot_record and snapshot_record.generated_at else None
+            )
+            expires_at = snapshot_record.expires_at.isoformat() if snapshot_record and snapshot_record.expires_at else None
+            return {
+                "recommendations": recs,
+                "config": config,
+                "total": total,
+                "last_refresh": last_refresh,
+                "expires_at": expires_at,
+            }
+
+        config = get_hidden_gems_config()
         from ..routes.recommendations import _is_adult, _is_documentary
         pool = []
         for mid, m in movie_data.items():
@@ -1035,7 +1182,35 @@ async def get_hidden_gems(
                 "explanation": None,
                 "confidence": None,
             })
-        return {"recommendations": recs, "config": get_hidden_gems_config(), "total": len(recs)}
+        last_refresh = datetime.now(timezone.utc).isoformat()
+        payload_to_store = {
+            "recommendations": recs,
+            "config": config,
+            "total": len(recs),
+            "last_refresh": last_refresh,
+        }
+        ttl_seconds = getattr(model_service, "CACHE_TTL", 86400)
+        expected_expiry = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds or 0)
+        saved_snapshot = _save_snapshot(
+            db,
+            current_user.user_id,
+            "hidden_gems",
+            payload_to_store,
+            ttl_seconds=ttl_seconds,
+            metadata={"limit": limit},
+        )
+        expires_at = (
+            saved_snapshot.expires_at.isoformat()
+            if saved_snapshot and saved_snapshot.expires_at
+            else expected_expiry.isoformat()
+        )
+        return {
+            "recommendations": recs,
+            "config": config,
+            "total": len(recs),
+            "last_refresh": last_refresh,
+            "expires_at": expires_at,
+        }
     except HTTPException:
         raise
     except Exception as e:
