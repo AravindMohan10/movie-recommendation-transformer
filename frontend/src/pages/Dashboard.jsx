@@ -10,7 +10,20 @@ import SurpriseMeModal from "../Components/SurpriseMeModal";
 import CinemaLoader from "../Components/CinemaLoader";
 import MovieReviewsModal from "../Components/MovieReviewsModal";
 import MovieSearch from "../Components/MovieSearch";
-import { getOnboardingStatus, getRecommendations, getSurpriseMe, getGenres, getMoviesByGenre, getHiddenGems, completeOnboarding } from "../Utils/api";
+import {
+  getOnboardingStatus,
+  getRecommendations,
+  getSurpriseMe,
+  getGenres,
+  getMoviesByGenre,
+  getHiddenGems,
+  completeOnboarding,
+  getInteractions,
+  recordInteraction,
+  getWatchlist,
+  addToWatchlist,
+  removeFromWatchlist
+} from "../Utils/api";
 import { devLog, devWarn, devError } from "../Utils/logger";
 
 const demoMovies = [
@@ -329,14 +342,9 @@ export default function Dashboard() {
   // Load activities from backend on mount and when needed
   const loadActivities = async () => {
     try {
-      const response = await fetch('/api/recommendations/interactions?limit=20', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('cineai_token')}`
-        }
-      });
+      const data = await getInteractions(20);
       
-      if (response.ok) {
-        const data = await response.json();
+      if (data && Array.isArray(data.interactions)) {
         // Filter: Only show the most recent like OR dislike per movie (mutual exclusivity)
         const movieActions = {}; // Track most recent action per movie
         data.interactions.forEach(interaction => {
@@ -468,16 +476,8 @@ export default function Dashboard() {
   // Load watchlist
   const loadWatchlist = async () => {
     try {
-      const response = await fetch('/api/watchlist', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('cineai_token')}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setWatchlist(data.watchlist || []);
-      }
+      const data = await getWatchlist();
+      setWatchlist(data.watchlist || []);
     } catch (error) {
       devError('Error loading watchlist:', error);
     }
@@ -525,6 +525,7 @@ export default function Dashboard() {
     const movieId = movie.id || movie.movie_id;
     const idStr = String(movieId);
     const idInt = parseInt(movieId);
+    const movieTitle = movie.title || movie.movie_title || '';
     
     devLog('👍 Like clicked for movie:', movieId, movieTitle);
     devLog('🔘 Current state BEFORE update:', userInteractions);
@@ -548,47 +549,21 @@ export default function Dashboard() {
     addToActivity('like', movieTitle, movieId);
     
     try {
-      const token = localStorage.getItem('cineai_token');
-      devLog('🌐 API Call - Like:', { movieId, token: token ? 'present' : 'missing' });
-      
-      const apiUrl = '/api/recommendations/interact';
-      devLog('🌐 Calling:', apiUrl);
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          movie_id: movieId,
-          action: 'like'
-        })
-      });
-      
-      devLog('🌐 Response status:', response.status);
-      const responseData = await response.json().catch(() => ({}));
-      devLog('🌐 Response data:', responseData);
-      
-      if (!response.ok) {
-        devError('❌ API Error:', response.status, responseData);
-      }
+      const responseData = await recordInteraction({ movieId, action: 'like' });
+      devLog('🌐 Interaction saved (like):', responseData);
 
-      if (response.ok) {
-        // Reload activities from backend to get persisted data
-        await loadActivities();
-        
+      // Reload activities from backend to get persisted data
+      await loadActivities();
+      
+      if (!responseData?.is_duplicate) {
         setAiInsights(prev => ({
           ...prev,
           totalInteractions: prev.totalInteractions + 1
         }));
-        
-        // Don't refresh recommendations - keep carousel smooth and stable
-        // User can manually refresh or recommendations update on next page load
-      } else {
-        // Revert on error
-        await loadActivities();
       }
+      
+      // Don't refresh recommendations - keep carousel smooth and stable
+      // User can manually refresh or recommendations update on next page load
     } catch (error) {
       devError('Error recording like:', error);
       // Revert on error
@@ -605,6 +580,7 @@ export default function Dashboard() {
     const movieId = movie.id || movie.movie_id;
     const idStr = String(movieId);
     const idInt = parseInt(movieId);
+    const movieTitle = movie.title || movie.movie_title || '';
     
     devLog('👎 Dislike clicked for movie:', movieId, movieTitle);
     devLog('🔘 Current state BEFORE update:', userInteractions);
@@ -628,40 +604,20 @@ export default function Dashboard() {
     addToActivity('dislike', movieTitle, movieId);
     
     try {
-      const token = localStorage.getItem('cineai_token');
-      devLog('🌐 API Call - Dislike:', { movieId, token: token ? 'present' : 'missing' });
-      
-      const response = await fetch('/api/recommendations/interact', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          movie_id: movieId,
-          action: 'dislike'
-        })
-      });
-      
-      devLog('🌐 Response status:', response.status);
-      const responseData = await response.json().catch(() => ({}));
-      devLog('🌐 Response data:', responseData);
+      const responseData = await recordInteraction({ movieId, action: 'dislike' });
+      devLog('🌐 Interaction saved (dislike):', responseData);
 
-      if (response.ok) {
-        // Reload activities from backend
-        await loadActivities();
-        
+      await loadActivities();
+      
+      if (!responseData?.is_duplicate) {
         setAiInsights(prev => ({
           ...prev,
           totalInteractions: prev.totalInteractions + 1
         }));
-        
-        // Don't refresh recommendations - keep carousel smooth and stable
-        // User can manually refresh or recommendations update on next page load
-      } else {
-        // Revert on error
-        await loadActivities();
       }
+      
+      // Don't refresh recommendations - keep carousel smooth and stable
+      // User can manually refresh or recommendations update on next page load
     } catch (error) {
       devError('Error recording dislike:', error);
       // Revert on error
@@ -678,7 +634,8 @@ export default function Dashboard() {
     const movieId = movie.id || movie.movie_id;
     const idStr = String(movieId);
     const idInt = parseInt(movieId);
-    
+    const movieTitle = movie.title || movie.movie_title || '';
+
     devLog('⭐ Favorite clicked for movie:', movieId, movieTitle);
     devLog('🔘 Current state BEFORE update:', userInteractions);
     
@@ -715,50 +672,17 @@ export default function Dashboard() {
     }
     
     try {
-      const token = localStorage.getItem('cineai_token');
-      devLog('🌐 API Call - Favorite:', { movieId, token: token ? 'present' : 'missing' });
+      const responseData = await recordInteraction({ movieId, action: 'favorite' });
+      devLog('🌐 Interaction saved (favorite):', responseData);
       
-      const response = await fetch('/api/recommendations/interact', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          movie_id: movieId,
-          action: 'favorite'
-        })
-      });
+      // Reload activities from backend to reflect the toggle
+      await loadActivities();
       
-      devLog('🌐 Response status:', response.status);
-      
-      if (response.ok) {
-        const responseData = await response.json().catch(() => ({}));
-        devLog('🌐 Response data:', responseData);
-        
-        // Reload activities from backend to reflect the toggle
-        await loadActivities();
-        
-        // Only increment interactions if we're favoriting (not unfavoriting)
-        if (newFavoriteState && !responseData.removed) {
-          setAiInsights(prev => ({
-            ...prev,
-            totalInteractions: prev.totalInteractions + 1
-          }));
-        }
-        
-        // Don't refresh recommendations - keep carousel smooth and stable
-        // User can manually refresh or recommendations update on next page load
-      } else {
-        // Revert on error - toggle back
-        setUserInteractions((prev) => {
-          const newState = JSON.parse(JSON.stringify(prev));
-          const currentState = newState[idStr] || newState[idInt] || {};
-          newState[idStr] = { ...currentState, favorite: isCurrentlyFavorited };
-          newState[idInt] = { ...currentState, favorite: isCurrentlyFavorited };
-          return newState;
-        });
-        await loadActivities();
+      if (newFavoriteState && !responseData?.removed && !responseData?.is_duplicate) {
+        setAiInsights(prev => ({
+          ...prev,
+          totalInteractions: prev.totalInteractions + 1
+        }));
       }
     } catch (error) {
       devError('Error recording favorite:', error);
@@ -849,29 +773,11 @@ export default function Dashboard() {
       const isInList = watchlist.some(w => w.movie_id === movieId);
       
       if (isInList) {
-        // Remove from watchlist
-        const response = await fetch(`/api/watchlist/remove/${movieId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('cineai_token')}`
-          }
-        });
-        
-        if (response.ok) {
-          await loadWatchlist();
-        }
+        await removeFromWatchlist(movieId);
+        await loadWatchlist();
       } else {
-        // Add to watchlist
-        const response = await fetch(`/api/watchlist/add?movie_id=${movieId}`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('cineai_token')}`
-          }
-        });
-
-        if (response.ok) {
-          await loadWatchlist();
-        }
+        await addToWatchlist(movieId);
+        await loadWatchlist();
       }
     } catch (error) {
       devError('Error toggling watchlist:', error);

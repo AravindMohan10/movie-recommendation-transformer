@@ -270,6 +270,49 @@ export async function getRecommendations(limit = 10) {
   }
 }
 
+export async function getInteractions(limit = 20) {
+  try {
+    const token = localStorage.getItem('cineai_token');
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+    };
+    const res = await fetchWithRetry(`${API_BASE}/recommendations/interactions?limit=${limit}`, {
+      method: "GET",
+      credentials: "include",
+      headers,
+    });
+    return handleResponse(res);
+  } catch (error) {
+    console.error('Get interactions error:', error);
+    throw error;
+  }
+}
+
+export async function recordInteraction({ movieId, action, rating, reviewText }) {
+  try {
+    const token = localStorage.getItem('cineai_token');
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    };
+    const res = await fetchWithRetry(`${API_BASE}/recommendations/interact`, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: JSON.stringify({
+        movie_id: movieId,
+        action,
+        rating,
+        review_text: reviewText,
+      }),
+    });
+    return handleResponse(res);
+  } catch (error) {
+    console.error('Record interaction error:', error);
+    throw error;
+  }
+}
+
 /** Surprise Me: random quality picks (no documentaries, no adult). */
 export async function getSurpriseMe(limit = 5) {
   try {
