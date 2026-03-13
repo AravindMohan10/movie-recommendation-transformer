@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
 from typing import List, Dict, Optional
 from datetime import datetime, timezone, timedelta
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 import json
 import sys
 import random
@@ -86,14 +86,19 @@ def _sanitize_rec_poster(rec: dict) -> dict:
 
 def _load_snapshot(db: Session, user_id: int, kind: str, required_limit: Optional[int] = None) -> Dict[str, Optional[object]]:
     """Load a valid snapshot payload if it exists and has not expired."""
-    snapshot = (
-        db.query(RecommendationSnapshot)
-        .filter(
-            RecommendationSnapshot.user_id == user_id,
-            RecommendationSnapshot.kind == kind,
+    try:
+        snapshot = (
+            db.query(RecommendationSnapshot)
+            .filter(
+                RecommendationSnapshot.user_id == user_id,
+                RecommendationSnapshot.kind == kind,
+            )
+            .first()
         )
-        .first()
-    )
+    except OperationalError as exc:  # table might not exist yet (old DB)
+        logger.debug("Snapshot table unavailable when loading (%s): %s", kind, exc)
+        db.rollback()
+        return {"payload": None, "record": None}
     if not snapshot:
         return {"payload": None, "record": None}
 
@@ -137,14 +142,19 @@ def _save_snapshot(
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(seconds=ttl_seconds)
 
-    snapshot = (
-        db.query(RecommendationSnapshot)
-        .filter(
-            RecommendationSnapshot.user_id == user_id,
-            RecommendationSnapshot.kind == kind,
+    try:
+        snapshot = (
+            db.query(RecommendationSnapshot)
+            .filter(
+                RecommendationSnapshot.user_id == user_id,
+                RecommendationSnapshot.kind == kind,
+            )
+            .first()
         )
-        .first()
-    )
+    except OperationalError as exc:
+        logger.debug("Snapshot table unavailable when saving (%s): %s", kind, exc)
+        db.rollback()
+        return None
     try:
         if not snapshot:
             snapshot = RecommendationSnapshot(user_id=user_id, kind=kind)
