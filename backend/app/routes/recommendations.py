@@ -84,6 +84,15 @@ def _sanitize_rec_poster(rec: dict) -> dict:
     return out
 
 
+def _ensure_aware(dt: Optional[datetime]) -> Optional[datetime]:
+    """SQLite strips tzinfo; treat stored timestamps as UTC."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def _load_snapshot(db: Session, user_id: int, kind: str, required_limit: Optional[int] = None) -> Dict[str, Optional[object]]:
     """Load a valid snapshot payload if it exists and has not expired."""
     try:
@@ -103,7 +112,8 @@ def _load_snapshot(db: Session, user_id: int, kind: str, required_limit: Optiona
         return {"payload": None, "record": None}
 
     now = datetime.now(timezone.utc)
-    if not snapshot.expires_at or snapshot.expires_at <= now:
+    expires_at = _ensure_aware(snapshot.expires_at)
+    if not expires_at or expires_at <= now:
         return {"payload": None, "record": snapshot}
 
     metadata = {}
@@ -250,12 +260,14 @@ async def get_recommendations(
 
         if use_snapshot:
             recommendations = snapshot_payload.get("recommendations", []) or []
+            generated_at = _ensure_aware(snapshot_record.generated_at) if snapshot_record else None
+            expires_at = _ensure_aware(snapshot_record.expires_at) if snapshot_record else None
             last_refresh = (
                 snapshot_payload.get("last_refresh")
-                or (snapshot_record.generated_at.isoformat() if snapshot_record and snapshot_record.generated_at else None)
+                or (generated_at.isoformat() if generated_at else None)
             )
-            if snapshot_record and snapshot_record.expires_at:
-                snapshot_expires_at_iso = snapshot_record.expires_at.isoformat()
+            if expires_at:
+                snapshot_expires_at_iso = expires_at.isoformat()
 
         if not use_snapshot:
             # Progressive enhancement: Adjust recommendation strategy based on user data
@@ -324,7 +336,7 @@ async def get_recommendations(
                     metadata=metadata,
                 )
                 if saved_snapshot and saved_snapshot.expires_at:
-                    snapshot_expires_at_iso = saved_snapshot.expires_at.isoformat()
+                    snapshot_expires_at_iso = _ensure_aware(saved_snapshot.expires_at).isoformat()
                 else:
                     snapshot_expires_at_iso = expected_expiry.isoformat()
 
@@ -1142,10 +1154,12 @@ async def get_hidden_gems(
             recs = snapshot_payload.get("recommendations", []) or []
             config = snapshot_payload.get("config") or get_hidden_gems_config()
             total = snapshot_payload.get("total", len(recs))
+            generated_at = _ensure_aware(snapshot_record.generated_at) if snapshot_record else None
+            expires_at_dt = _ensure_aware(snapshot_record.expires_at) if snapshot_record else None
             last_refresh = snapshot_payload.get("last_refresh") or (
-                snapshot_record.generated_at.isoformat() if snapshot_record and snapshot_record.generated_at else None
+                generated_at.isoformat() if generated_at else None
             )
-            expires_at = snapshot_record.expires_at.isoformat() if snapshot_record and snapshot_record.expires_at else None
+            expires_at = expires_at_dt.isoformat() if expires_at_dt else None
             return {
                 "recommendations": recs,
                 "config": config,
@@ -1210,7 +1224,7 @@ async def get_hidden_gems(
             metadata={"limit": limit},
         )
         expires_at = (
-            saved_snapshot.expires_at.isoformat()
+            _ensure_aware(saved_snapshot.expires_at).isoformat()
             if saved_snapshot and saved_snapshot.expires_at
             else expected_expiry.isoformat()
         )
