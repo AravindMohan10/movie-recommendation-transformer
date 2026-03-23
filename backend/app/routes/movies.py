@@ -453,7 +453,7 @@ async def get_random_movies(limit: int = Query(10, ge=1, le=30)) -> Dict:
     movies = load_movie_data()
     pool = []
     for m in movies:
-        if _is_documentary(m):
+        if _is_adult(m) or _is_documentary(m):
             continue
         vote_avg = (m.get("vote_average") or 0) or 0
         vote_count = (m.get("vote_count") or 0) or 0
