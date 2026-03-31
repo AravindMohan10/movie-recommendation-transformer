@@ -36,6 +36,12 @@ logger.info(f"🔧 Cache Configuration: {'DEVELOPMENT' if DEV_MODE else 'PRODUCT
 
 # RAG + LLM: keep transformers in codebase but use CF + RAG rerank
 USE_RAG_LLM_RERANK = os.getenv("USE_RAG_LLM_RERANK", "true").lower() in ("1", "true", "yes")
+LLM_WHY_TOP_N = int(os.getenv("LLM_WHY_TOP_N", "5"))
+LLM_WHY_SKIP_LIMITED_DATA = os.getenv("LLM_WHY_SKIP_LIMITED_DATA", "true").lower() in ("1", "true", "yes")
+ENABLE_SEMANTIC_CANDIDATES = os.getenv("ENABLE_SEMANTIC_CANDIDATES", "true").lower() in ("1", "true", "yes")
+SEM_POOL_SIZE = int(os.getenv("SEM_POOL_SIZE", "60"))
+SEM_MIN_SIM = float(os.getenv("SEM_MIN_SIM", "0.45"))
+SEM_CANDIDATE_CAP = int(os.getenv("SEM_CANDIDATE_CAP", "80"))
 
 # Bump this when poster/movie_data logic changes so cached recommendations are invalidated
 REC_CACHE_VERSION = "v3"
@@ -116,6 +122,56 @@ class MovieRecommendationModel:
         
         # Load model and mappings
         self._load_model()
+
+    def _load_movies_from_path(self, movie_data_path: Path) -> List[Dict]:
+        """
+        Load movies from dataset path, supporting both JSONL and JSON/array formats.
+        Returns an empty list on parse errors or missing files.
+        """
+        movies: List[Dict] = []
+        if not movie_data_path.exists():
+            return movies
+
+        # First attempt: JSONL (one JSON object per line)
+        try:
+            with open(movie_data_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = (line or "").strip()
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                    except Exception:
+                        continue
+                    if isinstance(obj, dict):
+                        # Handle wrapped JSON objects even when stored as one line.
+                        if isinstance(obj.get("movies"), list):
+                            movies.extend([m for m in obj.get("movies", []) if isinstance(m, dict)])
+                        elif isinstance(obj.get("results"), list):
+                            movies.extend([m for m in obj.get("results", []) if isinstance(m, dict)])
+                        elif obj.get("tmdb_id") is not None or obj.get("id") is not None:
+                            movies.append(obj)
+            if movies:
+                return movies
+        except Exception:
+            # Fall through to JSON document parsing below.
+            pass
+
+        # Second attempt: full JSON document (array or {"movies": [...]})
+        try:
+            with open(movie_data_path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+            if isinstance(payload, list):
+                movies = [m for m in payload if isinstance(m, dict)]
+            elif isinstance(payload, dict):
+                if isinstance(payload.get("movies"), list):
+                    movies = [m for m in payload.get("movies", []) if isinstance(m, dict)]
+                elif isinstance(payload.get("results"), list):
+                    movies = [m for m in payload.get("results", []) if isinstance(m, dict)]
+        except Exception as e:
+            logger.warning("Failed parsing movie dataset %s: %s", movie_data_path, e)
+            return []
+        return movies
         
     def _load_model(self):
         """Load the trained ensemble recommendation engine"""
@@ -145,12 +201,7 @@ class MovieRecommendationModel:
             
             movies = []
             if movie_data_path.exists():
-                with open(movie_data_path, 'r', encoding='utf-8') as f:
-                    for line in f:
-                        try:
-                            movies.append(json.loads(line.strip()))
-                        except:
-                            continue
+                movies = self._load_movies_from_path(movie_data_path)
                 logger.info(f"Loaded {len(movies)} movies for model initialization")
             else:
                 logger.warning("Movie data file not found. Model will be in limited mode.")
@@ -215,15 +266,11 @@ class MovieRecommendationModel:
                 
                 if movie_data_path.exists():
                     logger.info(f"Loading movie data from {movie_data_path}")
-                    with open(movie_data_path, 'r', encoding='utf-8') as f:
-                        for line in f:
-                            try:
-                                movie = json.loads(line.strip())
-                                movie_id = movie.get('tmdb_id') or movie.get('id')
-                                if movie_id:
-                                    self.movie_data[str(movie_id)] = movie
-                            except:
-                                continue
+                    movies = self._load_movies_from_path(movie_data_path)
+                    for movie in movies:
+                        movie_id = movie.get('tmdb_id') or movie.get('id')
+                        if movie_id:
+                            self.movie_data[str(movie_id)] = movie
                     logger.info(f"✅ Loaded {len(self.movie_data)} movies for recommendations")
                 else:
                     logger.warning(f"Movie data file not found at {movie_data_path}")
@@ -492,7 +539,8 @@ class MovieRecommendationModel:
                     "overview": movie_info.get('overview', '')[:200] if movie_info.get('overview') else '',
                     "vote_average": movie_info.get('vote_average'),
                     "guarantee_level": rec.get('guarantee', {}).get('guarantee_level', 'medium'),
-                    "explanation": rec.get('explanation', 'Personalized recommendation based on your preferences.')
+                    # Keep explanation empty unless it was actually generated.
+                    "explanation": rec.get('explanation')
                 }
                 formatted_recs.append(formatted_rec)
             
@@ -610,6 +658,102 @@ class MovieRecommendationModel:
             logger.warning("Could not load interaction counts: %s", e)
             return 0, 0
 
+    def _build_semantic_query_from_user_history(self, user_id: int, db_session) -> str:
+        """
+        Build semantic retrieval query from user's own reviews + liked/favorite movie overviews.
+        This keeps semantics user-grounded and avoids extra LLM calls per request.
+        """
+        if not db_session:
+            return ""
+        try:
+            from .models import UserInteraction
+
+            parts: List[str] = []
+            # Strong signal: user's own review language.
+            reviewed_rows = (
+                db_session.query(UserInteraction.review_text)
+                .filter(
+                    UserInteraction.user_id == user_id,
+                    UserInteraction.action == "review",
+                    UserInteraction.review_text.isnot(None),
+                )
+                .order_by(UserInteraction.created_at.desc())
+                .limit(10)
+                .all()
+            )
+            for row in reviewed_rows:
+                text = ((row[0] if isinstance(row, tuple) else getattr(row, "review_text", "")) or "").strip()
+                if text:
+                    parts.append(text[:1200])
+
+            # Secondary signal: overviews/titles from liked/favorited movies.
+            liked_rows = (
+                db_session.query(UserInteraction.movie_id)
+                .filter(
+                    UserInteraction.user_id == user_id,
+                    UserInteraction.action.in_(["like", "favorite"]),
+                )
+                .limit(20)
+                .all()
+            )
+            for row in liked_rows:
+                mid = row[0] if isinstance(row, tuple) else getattr(row, "movie_id", None)
+                if mid is None:
+                    continue
+                m = self.movie_data.get(str(mid)) or self.movie_data.get(mid) or self.movie_data.get(int(mid))
+                if not m:
+                    continue
+                title = (m.get("title") or "").strip()
+                overview = (m.get("overview") or "").strip()
+                blob = f"{title}\n{overview}".strip()
+                if blob:
+                    parts.append(blob[:900])
+            # Keep query compact for low latency.
+            return "\n\n".join(parts)[:4000] if parts else ""
+        except Exception as e:
+            logger.warning("Could not build semantic query for user %s: %s", user_id, e)
+            return ""
+
+    def _get_semantic_candidates(
+        self,
+        user_id: int,
+        db_session,
+        valid_movie_ids: List[int],
+        exclude_ids: Optional[List[int]] = None,
+    ) -> List[Tuple[int, float]]:
+        """
+        Retrieve semantic candidates from RAG index using user's own review/like history.
+        Returns list of (movie_id, semantic_score) sorted descending.
+        """
+        from .rag_service import get_rag_service
+
+        query = self._build_semantic_query_from_user_history(user_id, db_session)
+        if not query:
+            return []
+        rag = get_rag_service()
+        if not rag:
+            return []
+        valid_set = set(valid_movie_ids or [])
+        exclude_set = set(exclude_ids or [])
+        out: List[Tuple[int, float]] = []
+        try:
+            retrieved = rag.retrieve_similar(query, top_k=max(SEM_POOL_SIZE, 1))
+            for mid, sim, _ in retrieved:
+                if valid_set and mid not in valid_set:
+                    continue
+                if mid in exclude_set:
+                    continue
+                if float(sim) < SEM_MIN_SIM:
+                    continue
+                out.append((int(mid), float(sim)))
+            out.sort(key=lambda x: -x[1])
+            if SEM_CANDIDATE_CAP > 0:
+                out = out[:SEM_CANDIDATE_CAP]
+            return out
+        except Exception as e:
+            logger.warning("Semantic candidate retrieval failed for user %s: %s", user_id, e)
+            return []
+
     def _get_ensemble_recommendations(
         self, user_id: int, top_k: int, valid_movie_ids: List[int]
     ) -> List[Dict]:
@@ -637,15 +781,59 @@ class MovieRecommendationModel:
         cf = self.engine.collaborative_recommender
         exclude_watched = self._get_exclude_watched(user_id, db_session)
         exclude = list(set(exclude_watched) | set(exclude_last_shown or []))
-        candidates = cf.recommend_for_user(
+        n_liked, n_reviewed = self._get_interaction_counts(user_id, db_session)
+        has_signal = n_liked >= 2 or n_reviewed >= 1
+        cf_candidates = cf.recommend_for_user(
             user_id=user_id,
             top_k=min(n_recommendations * 5, 500),
             exclude_watched=exclude,
             candidate_movies=valid_movie_ids,
         )
-        if not candidates:
+        if not cf_candidates:
             logger.info("CF returned no candidates; using fallback for CF+RAG path")
             return []
+        sem_candidates: List[Tuple[int, float]] = []
+        if ENABLE_SEMANTIC_CANDIDATES and has_signal:
+            sem_candidates = self._get_semantic_candidates(
+                user_id=user_id,
+                db_session=db_session,
+                valid_movie_ids=valid_movie_ids,
+                exclude_ids=exclude,
+            )
+        elif not ENABLE_SEMANTIC_CANDIDATES:
+            logger.info("Semantic candidates disabled by env for user=%s", user_id)
+        # Merge semantic candidates into CF pool so semantics can contribute beyond pure CF set.
+        # Map semantic scores into CF-score range for a stable blended pre-pool.
+        merged_by_mid: Dict[int, float] = {}
+        cf_mid_set: Set[int] = set()
+        for mid, score in cf_candidates:
+            mid_i = int(mid)
+            cf_mid_set.add(mid_i)
+            merged_by_mid[mid_i] = float(score)
+        sem_mid_set: Set[int] = {int(mid) for mid, _ in sem_candidates}
+        if sem_candidates:
+            cf_scores = [float(s) for _, s in cf_candidates]
+            cf_min, cf_max = min(cf_scores), max(cf_scores)
+            cf_span = (cf_max - cf_min) or 1.0
+            for mid, sem_score in sem_candidates:
+                if mid in merged_by_mid:
+                    continue
+                sem_norm = max(0.0, min(1.0, sem_score))
+                mapped = cf_min + (sem_norm * cf_span)
+                merged_by_mid[mid] = float(mapped)
+        candidates = [(mid, s) for mid, s in merged_by_mid.items()]
+        candidates.sort(key=lambda x: -x[1])
+        sem_only_ids = sem_mid_set - cf_mid_set
+        overlap_ids = sem_mid_set & cf_mid_set
+        logger.info(
+            "Candidate merge user=%s cf=%d sem=%d sem_only=%d overlap=%d merged=%d",
+            user_id,
+            len(cf_candidates),
+            len(sem_candidates),
+            len(sem_only_ids),
+            len(overlap_ids),
+            len(candidates),
+        )
         reranked = rag_rerank(
             user_id=user_id,
             cf_candidates=candidates,
@@ -653,10 +841,23 @@ class MovieRecommendationModel:
             db_session=db_session,
             valid_movie_ids=valid_movie_ids,
         )
-        n_liked, n_reviewed = self._get_interaction_counts(user_id, db_session)
-        has_signal = n_liked >= 2 or n_reviewed >= 1
         limit = n_recommendations * 2
         batch = reranked[:limit]
+        if batch:
+            top_n = min(n_recommendations, len(batch))
+            batch_ids = [int(x["movie_id"]) for x in batch]
+            top_ids = set(batch_ids[:top_n])
+            sem_only_in_batch = sum(1 for mid in batch_ids if mid in sem_only_ids)
+            sem_only_in_top = sum(1 for mid in top_ids if mid in sem_only_ids)
+            logger.info(
+                "Semantic contribution user=%s batch_n=%d top_n=%d sem_only_batch=%d sem_only_top=%d sem_only_top_share=%.3f",
+                user_id,
+                len(batch),
+                top_n,
+                sem_only_in_batch,
+                sem_only_in_top,
+                (sem_only_in_top / max(1, top_n)),
+            )
         n_batch = len(batch)
         rag_svc = get_rag_service()
         recs = []
@@ -734,7 +935,13 @@ class MovieRecommendationModel:
         if recs and (n_liked >= 1 or n_reviewed >= 1):
             try:
                 user_context = get_user_context_for_explanations(user_id, db_session, self.movie_data)
-                why_results = generate_why_recommendations_batch(user_context, explanation_items)
+                skip_buckets = ["limited_data"] if LLM_WHY_SKIP_LIMITED_DATA else []
+                why_results = generate_why_recommendations_batch(
+                    user_context,
+                    explanation_items,
+                    max_items=LLM_WHY_TOP_N,
+                    skip_buckets=skip_buckets,
+                )
                 for i, expl in enumerate(why_results):
                     if i < len(recs) and expl:
                         recs[i]["explanation"] = expl
@@ -829,7 +1036,13 @@ class MovieRecommendationModel:
         if recs and (n_liked >= 1 or n_reviewed >= 1):
             try:
                 user_context = get_user_context_for_explanations(user_id, db_session, self.movie_data)
-                why_results = generate_why_recommendations_batch(user_context, explanation_items)
+                skip_buckets = ["limited_data"] if LLM_WHY_SKIP_LIMITED_DATA else []
+                why_results = generate_why_recommendations_batch(
+                    user_context,
+                    explanation_items,
+                    max_items=LLM_WHY_TOP_N,
+                    skip_buckets=skip_buckets,
+                )
                 for i, expl in enumerate(why_results):
                     if i < len(recs) and expl:
                         recs[i]["explanation"] = expl
@@ -939,15 +1152,11 @@ class MovieRecommendationModel:
                     movie_data_path = BASE_DIR / "data" / "raw" / "tmdb_complete_dataset.jsonl"
                 
                 if movie_data_path.exists():
-                    with open(movie_data_path, 'r', encoding='utf-8') as f:
-                        for line in f:
-                            try:
-                                movie = json.loads(line.strip())
-                                movie_id = movie.get('tmdb_id') or movie.get('id')
-                                if movie_id:
-                                    self.movie_data[str(movie_id)] = movie
-                            except:
-                                continue
+                    movies = self._load_movies_from_path(movie_data_path)
+                    for movie in movies:
+                        movie_id = movie.get('tmdb_id') or movie.get('id')
+                        if movie_id:
+                            self.movie_data[str(movie_id)] = movie
                     logger.info(f"✅ Loaded {len(self.movie_data)} movies for fallback")
                 else:
                     logger.error(f"Movie data file not found at {movie_data_path}")

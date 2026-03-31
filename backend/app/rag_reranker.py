@@ -98,6 +98,10 @@ def _titles_from_liked(
         m = movie_data.get(str(mid)) or movie_data.get(mid) or movie_data.get(int(mid))
         if m:
             t = (m.get("title") or "").strip()
+            genres = m.get("genres") or []
+            if isinstance(genres, list) and genres:
+                genre_str = ", ".join(str(g) for g in genres[:3])
+                t = f"{t} ({genre_str})" if t else ""
             if t:
                 titles.append(t)
     if reviewed:
@@ -105,6 +109,10 @@ def _titles_from_liked(
             m = movie_data.get(str(mid)) or movie_data.get(mid) or movie_data.get(int(mid))
             if m:
                 t = (m.get("title") or "").strip()
+                genres = m.get("genres") or []
+                if isinstance(genres, list) and genres:
+                    genre_str = ", ".join(str(g) for g in genres[:3])
+                    t = f"{t} ({genre_str})" if t else ""
                 if t and t not in titles:
                     titles.append(t)
     return titles

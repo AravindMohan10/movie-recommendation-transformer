@@ -74,3 +74,13 @@ def save(
         logger.info("RAG prefs saved for user_id=%s (signature=%s)", user_id, signature[:8])
     except Exception as e:
         logger.warning("RAG prefs save failed for user %s: %s", user_id, e)
+
+def clear(user_id: int) -> None:
+    """Delete cached prefs for user_id so they regenerate on next request."""
+    p = _path(user_id)
+    try:
+        if p.exists():
+            p.unlink()
+            logger.info("RAG prefs cleared for user_id=%s", user_id)
+    except Exception as e:
+        logger.warning("RAG prefs clear failed for user %s: %s", user_id, e)

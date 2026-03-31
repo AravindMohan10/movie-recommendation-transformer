@@ -7,7 +7,11 @@ from __future__ import annotations
 
 import logging
 import os
+import json
 import re
+import time
+import hashlib
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -16,8 +20,93 @@ logger = logging.getLogger(__name__)
 _WHY_TIMEOUT_SEC = float(os.getenv("LLM_WHY_TIMEOUT", "8"))
 _WHY_MAX_WORDS = 100
 _WHY_NONE_MARKER = "NONE"
+_WHY_CACHE_TTL_SEC = int(os.getenv("LLM_WHY_CACHE_TTL_SEC", "86400"))
+_WHY_CACHE_VERSION = os.getenv("LLM_WHY_CACHE_VERSION", "v1")
+# Approximation for rough cost and latency budgeting without provider usage API
+_CHARS_PER_TOKEN_EST = 4
+_WHY_INPUT_COST_PER_1M = float(os.getenv("LLM_WHY_INPUT_COST_PER_1M", "0.05"))
+_WHY_OUTPUT_COST_PER_1M = float(os.getenv("LLM_WHY_OUTPUT_COST_PER_1M", "0.08"))
 
 _llm_available: bool | None = None
+_BASE = Path(__file__).resolve().parent.parent.parent
+_WHY_CACHE_DIR = _BASE / "data" / "rag" / "why_cache"
+
+
+def _stable_hash(payload: Any) -> str:
+    blob = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:32]
+
+
+def _cache_path(cache_key: str) -> Path:
+    _WHY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    return _WHY_CACHE_DIR / f"{cache_key}.json"
+
+
+def _load_cached_why(cache_key: str) -> Optional[List[Optional[str]]]:
+    p = _cache_path(cache_key)
+    if not p.exists():
+        return None
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        created_at = float(payload.get("created_at", 0))
+        if (time.time() - created_at) > _WHY_CACHE_TTL_SEC:
+            return None
+        results = payload.get("results")
+        if not isinstance(results, list):
+            return None
+        return [x if isinstance(x, str) else None for x in results]
+    except Exception as e:
+        logger.debug("LLM why cache load failed: %s", e)
+        return None
+
+
+def _save_cached_why(cache_key: str, results: List[Optional[str]]) -> None:
+    p = _cache_path(cache_key)
+    try:
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "version": _WHY_CACHE_VERSION,
+                    "created_at": time.time(),
+                    "results": results,
+                },
+                f,
+            )
+    except Exception as e:
+        logger.debug("LLM why cache save failed: %s", e)
+
+
+def _estimate_tokens(text: str) -> int:
+    if not text:
+        return 0
+    return max(1, int(len(text) / _CHARS_PER_TOKEN_EST))
+
+
+def _build_why_cache_key(
+    user_context: Dict[str, Any],
+    items: List[Tuple[Dict[str, Any], str]],
+    model_name: str,
+) -> str:
+    user_sig = {
+        "liked_titles": (user_context.get("liked_titles") or [])[:15],
+        "pref_summary": (user_context.get("pref_summary") or "")[:500],
+        "user_review_snippets": [(s or "")[:300] for s in (user_context.get("user_review_snippets") or [])[:2]],
+    }
+    item_sig = []
+    for movie_ctx, reason_bucket in items:
+        item_sig.append(
+            {
+                "title": (movie_ctx.get("title") or "")[:200],
+                "overview": (movie_ctx.get("overview") or "")[:200],
+                "genres": [str(g) for g in (movie_ctx.get("genres") or [])[:5]],
+                "directors": [str(d) for d in (movie_ctx.get("directors") or [])[:2]],
+                "rag_document": (movie_ctx.get("rag_document") or "")[:400],
+                "reason_bucket": reason_bucket,
+            }
+        )
+    payload = {"v": _WHY_CACHE_VERSION, "model": model_name, "user": user_sig, "items": item_sig}
+    return _stable_hash(payload)
 
 
 def is_llm_available() -> bool:
@@ -61,14 +150,17 @@ def extract_preferences(
         client = Groq(api_key=key)
         chunks_text = "\n\n---\n\n".join((c[:800] for c in retrieved_chunks[:8]))
         titles_text = ", ".join(liked_titles[:15]) if liked_titles else "none"
-        prompt = f"""Based on these movie review excerpts and the movies the user liked, list 3–5 brief preference themes (genres, tones, themes) — one short phrase each, comma-separated. No preamble.
+        prompt = f"""Based on the movies the user liked and these review excerpts, identify 3-5 preference themes.
+Weight the liked movies list heavily — capture ALL genres present (action, thriller, sci-fi, drama, superhero, etc.), not just emotional themes.
+Output comma-separated short phrases. No preamble.
 
-Liked movies: {titles_text}
+Liked movies (with genres):
+{titles_text}
 
-Review excerpts:
+Review excerpts (secondary signal):
 {chunks_text}
 
-Preferences (comma-separated phrases):"""
+Preferences (comma-separated, must include genre preferences):"""
 
         resp = client.chat.completions.create(
             model="llama-3.1-8b-instant",
@@ -177,16 +269,47 @@ One sentence (or NONE):"""
 def generate_why_recommendations_batch(
     user_context: Dict[str, Any],
     items: List[Tuple[Dict[str, Any], str]],
+    max_items: Optional[int] = None,
+    skip_buckets: Optional[List[str]] = None,
 ) -> List[Optional[str]]:
     """
     Generate one "why" sentence per (movie_context, reason_bucket). Single LLM call.
     Returns list of same length; None where explanation could not be produced.
     """
-    if not is_llm_available() or not items:
+    if not items:
+        return []
+    if max_items is not None and max_items <= 0:
+        logger.info("LLM why disabled by max_items=%s", max_items)
+        return [None] * len(items)
+    if max_items is not None and max_items > 0:
+        items = items[:max_items]
+    original_len = len(items)
+    skip_set = set(skip_buckets or [])
+    active_items: List[Tuple[Dict[str, Any], str]] = []
+    active_index_map: List[int] = []
+    for idx, (movie_ctx, reason_bucket) in enumerate(items):
+        if reason_bucket in skip_set:
+            continue
+        active_items.append((movie_ctx, reason_bucket))
+        active_index_map.append(idx)
+    if not active_items:
+        logger.info("LLM why skipped all items by bucket policy: %s", sorted(skip_set))
+        return [None] * original_len
+    if not is_llm_available():
         return [None] * len(items)
     key = os.getenv("GROQ_API_KEY", "").strip()
     if not key:
         return [None] * len(items)
+    model_name = os.getenv("LLM_WHY_MODEL", "llama-3.1-8b-instant")
+    cache_key = _build_why_cache_key(user_context, active_items, model_name)
+    cached = _load_cached_why(cache_key)
+    if cached is not None and len(cached) == len(active_items):
+        logger.info("LLM why cache hit: n_items=%d", len(active_items))
+        out_full: List[Optional[str]] = [None] * original_len
+        for out_idx, src_idx in enumerate(active_index_map):
+            out_full[src_idx] = cached[out_idx]
+        return out_full
+    start = time.perf_counter()
     liked = (user_context.get("liked_titles") or [])[:15]
     pref = (user_context.get("pref_summary") or "").strip()[:500]
     user_reviews = (user_context.get("user_review_snippets") or [])[:2]
@@ -206,7 +329,7 @@ def generate_why_recommendations_batch(
         "limited_data": "limited data; use movie and any likes only",
     }
     blocks = []
-    for i, (movie_ctx, reason_bucket) in enumerate(items):
+    for i, (movie_ctx, reason_bucket) in enumerate(active_items):
         title = (movie_ctx.get("title") or "").strip()[:200]
         overview = (movie_ctx.get("overview") or "").strip()[:200]
         genres = movie_ctx.get("genres") or []
@@ -237,13 +360,13 @@ Output format: one line per movie, numbered 1., 2., 3., ... Each line is either 
         from groq import Groq
         client = Groq(api_key=key)
         resp = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model=model_name,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=min(800, 80 * len(items)),
+            max_tokens=min(800, 80 * len(active_items)),
             temperature=0.2,
         )
         raw = (resp.choices[0].message.content or "").strip()
-        results = _parse_numbered_why_lines(raw, len(items))
+        results = _parse_numbered_why_lines(raw, len(active_items))
         out = []
         for j, s in enumerate(results):
             if not s or _WHY_NONE_MARKER.upper() in (s or "").upper():
@@ -252,12 +375,31 @@ Output format: one line per movie, numbered 1., 2., 3., ... Each line is either 
                 out.append(None)
             else:
                 out.append((s or "").strip()[:500])
-        while len(out) < len(items):
+        while len(out) < len(active_items):
             out.append(None)
-        return out[: len(items)]
+        out = out[: len(active_items)]
+        _save_cached_why(cache_key, out)
+        out_full: List[Optional[str]] = [None] * original_len
+        for out_idx, src_idx in enumerate(active_index_map):
+            out_full[src_idx] = out[out_idx]
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        prompt_tokens = _estimate_tokens(prompt)
+        output_tokens = _estimate_tokens(raw)
+        cost_usd = ((prompt_tokens / 1_000_000) * _WHY_INPUT_COST_PER_1M) + (
+            (output_tokens / 1_000_000) * _WHY_OUTPUT_COST_PER_1M
+        )
+        logger.info(
+            "LLM why generated: n_items=%d latency_ms=%d prompt_tokens~=%d output_tokens~=%d est_cost_usd=%.6f",
+            len(active_items),
+            elapsed_ms,
+            prompt_tokens,
+            output_tokens,
+            cost_usd,
+        )
+        return out_full
     except Exception as e:
         logger.warning("LLM: generate_why_recommendations_batch failed: %s", e)
-        return [None] * len(items)
+        return [None] * original_len
 
 
 def _parse_numbered_why_lines(raw: str, expected: int) -> List[Optional[str]]:

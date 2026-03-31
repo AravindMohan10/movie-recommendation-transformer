@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -29,7 +30,9 @@ class RAGService:
 
     COLLECTION_NAME = "movie_reviews"
     EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-    MAX_MOVIES_INDEXED = 20_000
+    # Keep default modest for production CPU machines; can be overridden by env.
+    MAX_MOVIES_INDEXED = int(os.getenv("RAG_MAX_MOVIES_INDEXED", "3000"))
+    INDEX_BATCH_SIZE = int(os.getenv("RAG_INDEX_BATCH_SIZE", "2000"))
     CHUNK_MAX_CHARS = 12_000
 
     def __init__(self) -> None:
@@ -171,8 +174,8 @@ class RAGService:
             metadata={"description": "movie reviews and overviews"},
         )
 
-        # Chroma limits batch size (~5461); add in chunks
-        chunk_size = 5000
+        # Chroma limits batch size; env-configurable for slower machines.
+        chunk_size = max(500, self.INDEX_BATCH_SIZE)
         for b in range(0, len(ids), chunk_size):
             end = min(b + chunk_size, len(ids))
             self._collection.add(

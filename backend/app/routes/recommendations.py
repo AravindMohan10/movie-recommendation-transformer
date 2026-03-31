@@ -451,6 +451,12 @@ async def get_recommendations(
                 else:
                     confidence_level = "low"
                 # Use data from recommendation first, then enrich from movie_data
+                release_year_value = (
+                    release_year
+                    or movie_data.get("release_year")
+                    or rec.get("release_year")
+                    or rec.get("year")
+                )
                 enriched_rec = {
                     "id": movie_id,
                     "movie_id": movie_id,  # Include both for compatibility
@@ -463,8 +469,8 @@ async def get_recommendations(
                     "poster_url": poster_url,  # Add this for HolographicGallery
                     "genres": genres if genres else (rec.get("genres", []) if isinstance(rec.get("genres"), list) else []),
                     "genre": genres[0] if genres else (rec.get("genres", [None])[0] if isinstance(rec.get("genres"), list) and rec.get("genres") else "Unknown"),
-                    "year": release_year or movie_data.get("release_year") or rec.get("year", 2020),
-                    "release_year": release_year or rec.get("release_year"),
+                    "year": release_year_value,
+                    "release_year": release_year_value,
                     "director": directors[0] if directors else (rec.get("director") or movie_data.get("director") or "Unknown"),
                     "directors": directors if directors else (rec.get("directors") or []),
                     "genres_list": genres if genres else (rec.get("genres", []) if isinstance(rec.get("genres"), list) else []),
@@ -490,12 +496,8 @@ async def get_recommendations(
             any(rec.get("confidence", 0) > 0.3 for rec in enriched_recommendations)
         )
         
-        # Get user interactions count safely
-        try:
-            total_interactions = len(model_service.get_user_interactions(current_user.user_id))
-        except Exception as interactions_error:
-            logger.warning(f"Failed to get user interactions: {interactions_error}")
-            total_interactions = 0
+        # Use DB as the source of truth for interaction totals.
+        total_interactions = interaction_count
         
         # Fallback: get last_refresh from DB if not from cache (existing users)
         if last_refresh is None:

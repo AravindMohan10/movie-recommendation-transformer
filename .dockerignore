@@ -30,3 +30,8 @@ data/raw/tmdb_movies_20250630_135339.jsonl
 data/raw/tmdb_movies_20250630_141635.jsonl
 data/raw/tmdb_movies_20250630_190829.jsonl
 data/raw/tmdb_movies_20250630_192110.jsonl
+data/raw/*.jsonl
+# Keep canonical runtime movie datasets required by backend/app/model_service.py
+!data/raw/tmdb_movies_50k_20250711_011112.jsonl
+!data/raw/tmdb_complete_dataset.jsonl
+data/rag/chroma_db
