@@ -3,18 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import './CinemaLoader.css';
 
 const LOADING_TEXTS = [
-  "Popcorn's ready. Curating your picks…",
-  "Rolling cameras. Finding your next favorite…",
-  "Lights, camera, recommendations…",
-  "Syncing with cinephiles like you…",
-  "Scanning 50,000+ titles for you…",
-  "Director's cut incoming…",
-  "Bypassing the algorithm fatigue…",
-  "Matching you with hidden gems…",
-  "Consulting the taste gods…",
-  "Loading the good stuff…",
-  "Adjusting the lens on your taste profile…",
-  "Splicing together your perfect lineup…",
+  "Curating your next watch…",
+  "Reading your recent taste signals…",
+  "Balancing familiar picks with discovery…",
+  "Composing a better lineup for tonight…",
+  "Finalizing your recommendation set…",
 ];
 
 export default function CinemaLoader() {
@@ -30,57 +23,13 @@ export default function CinemaLoader() {
   return (
     <div className="cinema-loader">
       <div className="cinema-loader__content">
-        {/* Director's slate */}
         <motion.div
-          className="cinema-loader__slate"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <div className="cinema-loader__slate-top" />
-          <div className="cinema-loader__slate-board">
-            <span className="cinema-loader__slate-scene">SCENE 1</span>
-            <span className="cinema-loader__slate-dot">·</span>
-            <span className="cinema-loader__slate-take">TAKE 1</span>
-          </div>
-          <div className="cinema-loader__slate-rec">
-            <span className="cinema-loader__slate-rec-dot" />
-            REC
-          </div>
-        </motion.div>
-
-        {/* Popcorn kettle + popping kernels */}
-        <motion.div
-          className="cinema-loader__popcorn"
-          initial={{ opacity: 0, scale: 0.9 }}
+          className="cinema-loader__pulse-ring"
+          initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
-        >
-          <div className="cinema-loader__kettle">
-            <div className="cinema-loader__kettle-body" />
-            <div className="cinema-loader__kettle-handle" />
-            <div className="cinema-loader__kettle-top" />
-            {/* Popping kernels - positioned around kettle opening */}
-            {[
-              { x: 15, y: 45 }, { x: 40, y: 40 }, { x: 65, y: 42 }, { x: 88, y: 46 },
-              { x: 25, y: 28 }, { x: 52, y: 25 }, { x: 75, y: 30 },
-            ].map((pos, i) => (
-              <div
-                key={i}
-                className="cinema-loader__kernel"
-                style={{
-                  '--delay': `${i * 0.12}s`,
-                  '--kernel-x': `${pos.x}%`,
-                  '--kernel-y': `${pos.y}%`,
-                }}
-              >
-                🍿
-              </div>
-            ))}
-          </div>
-        </motion.div>
+          transition={{ duration: 0.35 }}
+        />
 
-        {/* Rotating text */}
         <AnimatePresence mode="wait">
           <motion.p
             key={textIndex}
@@ -94,10 +43,16 @@ export default function CinemaLoader() {
           </motion.p>
         </AnimatePresence>
 
-        {/* Subtle skeleton preview */}
         <div className="cinema-loader__skeleton-row">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="cinema-loader__skeleton-card" />
+            <div key={i} className="cinema-loader__skeleton-card">
+              <div className="cinema-loader__skeleton-poster" />
+              <div className="cinema-loader__skeleton-meta">
+                <div className="cinema-loader__skeleton-line cinema-loader__skeleton-line--title" />
+                <div className="cinema-loader__skeleton-line cinema-loader__skeleton-line--sub" />
+                <div className="cinema-loader__skeleton-line cinema-loader__skeleton-line--sub-short" />
+              </div>
+            </div>
           ))}
         </div>
       </div>

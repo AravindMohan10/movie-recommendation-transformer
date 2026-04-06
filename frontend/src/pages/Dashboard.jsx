@@ -121,7 +121,33 @@ export default function Dashboard() {
   const [loadingGenre, setLoadingGenre] = useState(false);
   const [hiddenGems, setHiddenGems] = useState([]);
   const [loadingHiddenGems, setLoadingHiddenGems] = useState(false);
+  const [deepCutsMode, setDeepCutsMode] = useState("all");
+  const [deepCutsSeed, setDeepCutsSeed] = useState(0);
   const [lastRefresh, setLastRefresh] = useState(null);
+
+  const deepCuts = useMemo(() => {
+    const primaryIds = new Set(movies.map((m) => String(m.id || m.movie_id)));
+    let pool = hiddenGems.filter((g) => !primaryIds.has(String(g.id || g.movie_id)));
+
+    if (deepCutsMode !== "all") {
+      pool = pool.filter((movie) => {
+        const genreText = [movie.genre, ...(movie.genres || [])].join(" ").toLowerCase();
+        if (deepCutsMode === "arthouse") return /(drama|foreign|indie|festival|art)/.test(genreText);
+        if (deepCutsMode === "edge") return /(thriller|crime|mystery|war|horror)/.test(genreText);
+        if (deepCutsMode === "feelgood") return /(romance|comedy|family|music|animation)/.test(genreText);
+        return true;
+      });
+    }
+
+    const hashed = pool.map((movie) => {
+      const key = `${movie.id || movie.movie_id}-${movie.title || ""}-${deepCutsSeed}`;
+      let hash = 0;
+      for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+      return { movie, hash };
+    });
+    hashed.sort((a, b) => a.hash - b.hash);
+    return hashed.map((item) => item.movie);
+  }, [hiddenGems, movies, deepCutsMode, deepCutsSeed]);
 
   // When user selects a genre, fetch all movies in that genre from catalog (not filter recs)
   useEffect(() => {
@@ -191,8 +217,8 @@ export default function Dashboard() {
             poster_path: m.poster_path,
             image: posterUrl,
             serendipity_score: m.serendipity_score,
-            genre: "Hidden gem",
-            genres: ["Hidden gem"],
+            genres: m.genres || (m.genre ? [m.genre] : ["Hidden gem"]),
+            genre: m.genre || (Array.isArray(m.genres) && m.genres[0]) || "Hidden gem",
             year: null,
             release_year: null,
             director: "—",
@@ -874,7 +900,7 @@ export default function Dashboard() {
           </div>
           <div className="hidden md:flex items-center gap-2 text-sm text-teal-200">
             <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-pulse"></div>
-            AI Active
+            Personalized
           </div>
         </div>
         <div className="flex items-center gap-6">
@@ -900,7 +926,7 @@ export default function Dashboard() {
                 Welcome back, <span className="text-teal-300">{user.username}</span>
               </h1>
               <p className="text-gray-400 text-lg font-light">
-                Your AI has analyzed {aiInsights.totalInteractions} interactions to curate today's selections
+                Built from {aiInsights.totalInteractions} interactions and your recent activity
               </p>
             </div>
           </div>
@@ -953,7 +979,6 @@ export default function Dashboard() {
                 onClick={handleSurpriseMe}
                 className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-purple-500/50 flex items-center gap-2"
               >
-                <span>🎲</span>
                 Surprise Me
               </button>
               {selectedGenre == null && (
@@ -1038,7 +1063,6 @@ export default function Dashboard() {
                 />
               ) : (
                 <div className="text-center py-16 rounded-2xl border border-teal-500/20 bg-white/5">
-                  <div className="text-4xl mb-4">🎬</div>
                   <div className="text-xl text-gray-300 mb-2">No recommendations yet</div>
                   <div className="text-gray-500 mb-6 max-w-md mx-auto">
                     Like a few movies, add some to your watchlist, or try New picks. We’ll curate picks for you.
@@ -1067,7 +1091,6 @@ export default function Dashboard() {
               />
             ) : (
               <div className="text-center py-16 rounded-2xl border border-teal-500/20 bg-white/5">
-                <div className="text-4xl mb-4">🎬</div>
                 <div className="text-xl text-gray-300 mb-2">No movies in this genre</div>
                 <div className="text-gray-500 mb-6 max-w-md mx-auto">
                   Try another genre or go back to recommendations.
@@ -1084,16 +1107,51 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Hidden gems channel: high quality, lower popularity — only on recommendations view */}
+        {/* Deep cuts channel: high quality, lower popularity — only on recommendations view */}
         {selectedGenre == null && (
           <section className="mt-10 mb-8 px-4 md:px-6">
             <div className="max-w-7xl mx-auto">
-              <h2 className="text-xl font-semibold text-teal-200 mb-1 tracking-wide">
-                Hidden gems
-              </h2>
-              <p className="text-sm text-teal-400/80 mb-4">
-                High-quality picks that fly under the radar
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <div>
+                  <h2 className="text-xl font-semibold text-teal-200 mb-1 tracking-wide">
+                    Deep cuts
+                  </h2>
+                  <p className="text-sm text-teal-400/80">
+                    Less obvious picks, reshuffled for variety
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {[
+                    ["all", "All"],
+                    ["arthouse", "Arthouse"],
+                    ["edge", "Edge"],
+                    ["feelgood", "Feel-good"],
+                  ].map(([modeId, label]) => {
+                    const active = deepCutsMode === modeId;
+                    return (
+                      <button
+                        key={modeId}
+                        type="button"
+                        onClick={() => setDeepCutsMode(modeId)}
+                        className={`px-3 py-1.5 rounded-lg text-xs border transition ${
+                          active
+                            ? "bg-teal-500/20 border-teal-400 text-teal-200"
+                            : "bg-black/60 border-teal-700/70 text-teal-300 hover:border-teal-500"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setDeepCutsSeed((s) => s + 1)}
+                    className="px-3 py-1.5 rounded-lg text-xs border bg-black/60 border-teal-700/70 text-teal-300 hover:border-teal-500 transition"
+                  >
+                    Shuffle
+                  </button>
+                </div>
+              </div>
               {loadingHiddenGems ? (
                 <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin">
                   {[1, 2, 3, 4, 5].map((i) => (
@@ -1109,10 +1167,10 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-              ) : hiddenGems.length > 0 ? (
+              ) : deepCuts.length > 0 ? (
                 <div className="overflow-x-auto pb-4 scrollbar-thin -mx-2 px-2" style={{ scrollbarWidth: "thin" }}>
                   <HolographicGallery
-                    movies={hiddenGems.filter((g) => !movies.some((m) => (m.id || m.movie_id) === (g.id || g.movie_id)))}
+                    movies={deepCuts}
                     onLike={handleLike}
                     onDislike={handleDislike}
                     onFavorite={handleFavorite}
@@ -1125,7 +1183,7 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="py-8 rounded-xl border border-teal-500/20 bg-white/5 text-center text-teal-400/70 text-sm">
-                  No hidden gems right now. Check back later.
+                  No deep cuts available in this lane yet. Try another mode or shuffle.
                 </div>
               )}
             </div>
