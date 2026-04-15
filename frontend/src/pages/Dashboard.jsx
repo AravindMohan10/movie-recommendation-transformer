@@ -127,16 +127,20 @@ export default function Dashboard() {
 
   const deepCuts = useMemo(() => {
     const primaryIds = new Set(movies.map((m) => String(m.id || m.movie_id)));
-    let pool = hiddenGems.filter((g) => !primaryIds.has(String(g.id || g.movie_id)));
+    const uniquePool = hiddenGems.filter((g) => !primaryIds.has(String(g.id || g.movie_id)));
+    const basePool = uniquePool.length > 0 ? uniquePool : hiddenGems;
 
+    let pool = basePool;
     if (deepCutsMode !== "all") {
-      pool = pool.filter((movie) => {
+      const filtered = basePool.filter((movie) => {
         const genreText = [movie.genre, ...(movie.genres || [])].join(" ").toLowerCase();
         if (deepCutsMode === "arthouse") return /(drama|foreign|indie|festival|art)/.test(genreText);
-        if (deepCutsMode === "edge") return /(thriller|crime|mystery|war|horror)/.test(genreText);
-        if (deepCutsMode === "feelgood") return /(romance|comedy|family|music|animation)/.test(genreText);
+        if (deepCutsMode === "edge") return /(thriller|crime|mystery|war|horror|noir|psychological)/.test(genreText);
+        if (deepCutsMode === "feelgood") return /(romance|comedy|family|music|animation|adventure)/.test(genreText);
         return true;
       });
+      // Fallback so mode never appears broken when metadata is sparse.
+      pool = filtered.length > 0 ? filtered : basePool;
     }
 
     const hashed = pool.map((movie) => {
