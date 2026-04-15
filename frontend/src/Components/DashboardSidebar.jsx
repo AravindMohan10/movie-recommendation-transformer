@@ -14,8 +14,10 @@ const DashboardSidebar = ({
       onClick={onToggle}
       whileHover={{ scale: 1.1, boxShadow: "0 0 20px rgba(1,255,233,0.4)" }}
       whileTap={{ scale: 0.95 }}
-      className="fixed top-4 left-4 z-[100] w-12 h-12 rounded-full backdrop-blur-xl bg-white/5 border border-teal-500/30 flex items-center justify-center text-teal-300 transition-all duration-300 shadow-lg"
+      className="fixed z-[100] w-12 h-12 rounded-full backdrop-blur-xl bg-white/5 border border-teal-500/30 flex items-center justify-center text-teal-300 transition-all duration-300 shadow-lg"
       style={{ 
+        top: '92px', // sits just below the cine.ai line
+        left: isOpen ? '236px' : '16px', // hugs sidebar edge when open
         boxShadow: isOpen ? '0 0 20px rgba(1,255,233,0.2)' : '0 4px 12px rgba(0,0,0,0.3)'
       }}
       aria-label={isOpen ? 'Close sidebar' : 'Open sidebar'}

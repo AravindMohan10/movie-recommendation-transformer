@@ -1,5 +1,24 @@
 // src/Utils/api.js
-const API_BASE = import.meta.env.VITE_API_BASE || "/api";
+function resolveApiBase() {
+  const configured = (import.meta.env.VITE_API_BASE || "").trim();
+  if (!configured) return "/api";
+
+  if (typeof window !== "undefined") {
+    const isLocalHost =
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1";
+    const pointsToLocalBackend =
+      configured.includes("localhost") || configured.includes("127.0.0.1");
+
+    // Prevent production builds from accidentally calling localhost.
+    if (!isLocalHost && pointsToLocalBackend) {
+      return "/api";
+    }
+  }
+  return configured;
+}
+
+const API_BASE = resolveApiBase();
 
 // Base URL without /api (for /health, etc.)
 const API_ORIGIN = API_BASE.replace(/\/api\/?$/, "") || (typeof window !== "undefined" ? window.location.origin : "");
