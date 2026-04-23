@@ -21,7 +21,7 @@ _WHY_TIMEOUT_SEC = float(os.getenv("LLM_WHY_TIMEOUT", "8"))
 _WHY_MAX_WORDS = 100
 _WHY_NONE_MARKER = "NONE"
 _WHY_CACHE_TTL_SEC = int(os.getenv("LLM_WHY_CACHE_TTL_SEC", "86400"))
-_WHY_CACHE_VERSION = os.getenv("LLM_WHY_CACHE_VERSION", "v1")
+_WHY_CACHE_VERSION = os.getenv("LLM_WHY_CACHE_VERSION", "v2")
 # Approximation for rough cost and latency budgeting without provider usage API
 _CHARS_PER_TOKEN_EST = 4
 _WHY_INPUT_COST_PER_1M = float(os.getenv("LLM_WHY_INPUT_COST_PER_1M", "0.05"))
@@ -321,7 +321,7 @@ def generate_why_recommendations_batch(
     for s in user_reviews:
         if (s or "").strip():
             user_blob.append("User review excerpt: " + (s[:300].strip()))
-    user_section = "\n".join(user_blob) if user_blob else "No likes or preferences yet."
+    user_profile = "\n".join(user_blob) if user_blob else "No likes or preferences yet."
     bucket_instructions = {
         "rag_similar_reviews": "similarity to reviews of movies they liked",
         "rag_injected": "similar reviews and similar users",
@@ -347,37 +347,43 @@ def generate_why_recommendations_batch(
             parts.append("Excerpt: " + rag_doc)
         parts.append(f"Reason bucket: {bucket_hint}.")
         blocks.append("\n".join(parts))
-    prompt = f"""You will see user context and then several movies. For each movie, write ONE short sentence (under 25 words) explaining why we recommended it. Use ONLY the facts given. Do not invent titles or names. If you cannot explain for a movie, write exactly NONE for that line.
+    # NOTE: Keep output strictly JSON to simplify parsing/caching.
+    prompt = f"""Based on this user's taste profile:
+{user_profile}
 
-User context:
-{user_section}
+Recommend movies and explain specifically why each one matches their taste.
+Reference specific aspects of the user's taste profile in each explanation.
 
-Movies:
-{chr(10).join(blocks)}
+You will receive several movies (in order). Use ONLY the facts provided for each movie.
+Do not invent any movie titles or external facts.
 
-Output format: one line per movie, numbered 1., 2., 3., ... Each line is either one sentence or the word NONE."""
+Respond as JSON (and ONLY JSON) in this schema:
+[
+  {{
+    "movie": "<movie title>",
+    "explanation": "<specific explanation>"
+  }}
+]
+
+Rules for "explanation":
+- Write 1-3 sentences.
+- Must connect 1-2 preference aspects from the user's taste profile to 1-2 concrete movie facts (genres/directors/overview excerpt/rag excerpt).
+- If you cannot explain from the facts, set "explanation" to exactly "{_WHY_NONE_MARKER}" (uppercase), not any other text.
+- Keep it under 60 words.
+
+Movies (in order):
+{chr(10).join(blocks)}"""
     try:
         from groq import Groq
         client = Groq(api_key=key)
         resp = client.chat.completions.create(
             model=model_name,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=min(800, 80 * len(active_items)),
+            max_tokens=min(1200, 120 * len(active_items)),
             temperature=0.2,
         )
         raw = (resp.choices[0].message.content or "").strip()
-        results = _parse_numbered_why_lines(raw, len(active_items))
-        out = []
-        for j, s in enumerate(results):
-            if not s or _WHY_NONE_MARKER.upper() in (s or "").upper():
-                out.append(None)
-            elif len((s or "").split()) > _WHY_MAX_WORDS:
-                out.append(None)
-            else:
-                out.append((s or "").strip()[:500])
-        while len(out) < len(active_items):
-            out.append(None)
-        out = out[: len(active_items)]
+        out = _parse_json_why_array(raw, expected_len=len(active_items))
         _save_cached_why(cache_key, out)
         out_full: List[Optional[str]] = [None] * original_len
         for out_idx, src_idx in enumerate(active_index_map):
@@ -400,6 +406,44 @@ Output format: one line per movie, numbered 1., 2., 3., ... Each line is either 
     except Exception as e:
         logger.warning("LLM: generate_why_recommendations_batch failed: %s", e)
         return [None] * original_len
+
+
+def _parse_json_why_array(raw: str, expected_len: int) -> List[Optional[str]]:
+    """
+    Parse strict JSON array output from the LLM.
+    If parsing fails, return [None] * expected_len.
+    """
+    try:
+        start = raw.find("[")
+        end = raw.rfind("]")
+        if start == -1 or end == -1 or end <= start:
+            return [None] * expected_len
+        candidate = raw[start : end + 1]
+        parsed = json.loads(candidate)
+        if not isinstance(parsed, list):
+            return [None] * expected_len
+        out: List[Optional[str]] = [None] * expected_len
+        for i in range(min(expected_len, len(parsed))):
+            obj = parsed[i]
+            if not isinstance(obj, dict):
+                continue
+            expl = obj.get("explanation")
+            if not isinstance(expl, str):
+                continue
+            expl_norm = expl.strip()
+            if not expl_norm:
+                continue
+            if expl_norm.upper() == _WHY_NONE_MARKER.upper():
+                out[i] = None
+                continue
+            # Keep output bounded.
+            if len(expl_norm.split()) > _WHY_MAX_WORDS:
+                out[i] = None
+                continue
+            out[i] = expl_norm[:500]
+        return out
+    except Exception:
+        return [None] * expected_len
 
 
 def _parse_numbered_why_lines(raw: str, expected: int) -> List[Optional[str]]:

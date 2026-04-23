@@ -935,7 +935,9 @@ class MovieRecommendationModel:
         if recs and (n_liked >= 1 or n_reviewed >= 1):
             try:
                 user_context = get_user_context_for_explanations(user_id, db_session, self.movie_data)
-                skip_buckets = ["limited_data"] if LLM_WHY_SKIP_LIMITED_DATA else []
+                # Only generate explanations for RAG/LLM-influenced recs.
+                # CF-only candidates tend to be less grounded in review excerpts.
+                skip_buckets = ["cf_similar_users", "limited_data"]
                 why_results = generate_why_recommendations_batch(
                     user_context,
                     explanation_items,
@@ -1036,7 +1038,8 @@ class MovieRecommendationModel:
         if recs and (n_liked >= 1 or n_reviewed >= 1):
             try:
                 user_context = get_user_context_for_explanations(user_id, db_session, self.movie_data)
-                skip_buckets = ["limited_data"] if LLM_WHY_SKIP_LIMITED_DATA else []
+                # CF-only path: no RAG/LLM-grounded explanation.
+                skip_buckets = ["cf_similar_users", "limited_data"]
                 why_results = generate_why_recommendations_batch(
                     user_context,
                     explanation_items,
