@@ -935,9 +935,9 @@ class MovieRecommendationModel:
         if recs and (n_liked >= 1 or n_reviewed >= 1):
             try:
                 user_context = get_user_context_for_explanations(user_id, db_session, self.movie_data)
-                # Only generate explanations for RAG/LLM-influenced recs.
-                # CF-only candidates tend to be less grounded in review excerpts.
-                skip_buckets = ["cf_similar_users", "limited_data"]
+                # Generate explanations for both RAG- and CF-driven recommendations.
+                # Keep limited_data skipped to avoid low-signal generic copy.
+                skip_buckets = ["limited_data"] if LLM_WHY_SKIP_LIMITED_DATA else []
                 rag_bucket_count = sum(
                     1 for _, bucket in explanation_items if bucket in ("rag_similar_reviews", "rag_injected")
                 )
@@ -1049,8 +1049,8 @@ class MovieRecommendationModel:
         if recs and (n_liked >= 1 or n_reviewed >= 1):
             try:
                 user_context = get_user_context_for_explanations(user_id, db_session, self.movie_data)
-                # CF-only path: no RAG/LLM-grounded explanation.
-                skip_buckets = ["cf_similar_users", "limited_data"]
+                # CF-only path can still receive concrete explanations from user profile + movie context.
+                skip_buckets = ["limited_data"] if LLM_WHY_SKIP_LIMITED_DATA else []
                 logger.info(
                     "Explainability target (CF-only): user=%s rag_bucket_items=0 total_items=%d",
                     user_id,

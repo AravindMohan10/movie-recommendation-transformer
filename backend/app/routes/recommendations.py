@@ -125,7 +125,9 @@ def _load_snapshot(db: Session, user_id: int, kind: str, required_limit: Optiona
 
     if required_limit is not None:
         stored_limit = metadata.get("limit")
-        if stored_limit is not None and int(stored_limit) != int(required_limit):
+        # Reuse snapshot if it was generated with an equal-or-larger limit.
+        # This prevents unnecessary regeneration when clients request smaller limits.
+        if stored_limit is not None and int(stored_limit) < int(required_limit):
             return {"payload": None, "record": snapshot}
 
     try:
@@ -222,6 +224,13 @@ async def get_recommendations(
     """Get personalized movie recommendations. Cached 24h unless force_refresh=True. Registered for '' and '/' so GET /api/recommendations works."""
     try:
         from ..models import UserInteraction
+        env = os.getenv("ENV", "production").lower()
+        limit = max(1, min(int(limit or 10), 20))
+        # Abuse guard: in production, do not allow force-refresh via public API.
+        # Users should receive at-most one generated recommendation set per TTL window.
+        if env == "production" and force_refresh:
+            logger.info("Ignoring force_refresh in production for user=%s", current_user.user_id)
+            force_refresh = False
         
         # Get recommendations from model (works with or without onboarding)
         try:
