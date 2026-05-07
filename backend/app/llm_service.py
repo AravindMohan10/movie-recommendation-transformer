@@ -371,6 +371,8 @@ Rules for "explanation":
 - If you cannot explain from the facts, set "explanation" to exactly "{_WHY_NONE_MARKER}" (uppercase), not any other text.
 - Keep it under 60 words.
 
+You MUST return exactly {len(active_items)} JSON objects in the same order as the movies below.
+
 Movies (in order):
 {chr(10).join(blocks)}"""
     try:
@@ -384,6 +386,20 @@ Movies (in order):
         )
         raw = (resp.choices[0].message.content or "").strip()
         out = _parse_json_why_array(raw, expected_len=len(active_items))
+        # Backward-compatible fallback: if JSON parse yields no explanations, try numbered-line parser.
+        if not any(out):
+            legacy = _parse_numbered_why_lines(raw, len(active_items))
+            legacy_out: List[Optional[str]] = []
+            for s in legacy:
+                if not s or _WHY_NONE_MARKER.upper() in (s or "").upper():
+                    legacy_out.append(None)
+                elif len((s or "").split()) > _WHY_MAX_WORDS:
+                    legacy_out.append(None)
+                else:
+                    legacy_out.append((s or "").strip()[:500])
+            if any(legacy_out):
+                logger.info("LLM why parser fallback activated: parsed numbered lines")
+                out = legacy_out
         _save_cached_why(cache_key, out)
         out_full: List[Optional[str]] = [None] * original_len
         for out_idx, src_idx in enumerate(active_index_map):
@@ -402,6 +418,8 @@ Movies (in order):
             output_tokens,
             cost_usd,
         )
+        explained_count = sum(1 for x in out if x)
+        logger.info("LLM why coverage: explained=%d/%d", explained_count, len(active_items))
         return out_full
     except Exception as e:
         logger.warning("LLM: generate_why_recommendations_batch failed: %s", e)

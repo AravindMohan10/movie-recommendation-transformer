@@ -938,6 +938,15 @@ class MovieRecommendationModel:
                 # Only generate explanations for RAG/LLM-influenced recs.
                 # CF-only candidates tend to be less grounded in review excerpts.
                 skip_buckets = ["cf_similar_users", "limited_data"]
+                rag_bucket_count = sum(
+                    1 for _, bucket in explanation_items if bucket in ("rag_similar_reviews", "rag_injected")
+                )
+                logger.info(
+                    "Explainability target (CF+RAG): user=%s rag_bucket_items=%d total_items=%d",
+                    user_id,
+                    rag_bucket_count,
+                    len(explanation_items),
+                )
                 why_results = generate_why_recommendations_batch(
                     user_context,
                     explanation_items,
@@ -947,6 +956,8 @@ class MovieRecommendationModel:
                 for i, expl in enumerate(why_results):
                     if i < len(recs) and expl:
                         recs[i]["explanation"] = expl
+                explained = sum(1 for r in recs if r.get("explanation"))
+                logger.info("Explainability applied (CF+RAG): user=%s explained=%d/%d", user_id, explained, len(recs))
             except Exception as e:
                 logger.warning("Dynamic explanation batch failed: %s", e)
         return recs
@@ -1040,6 +1051,11 @@ class MovieRecommendationModel:
                 user_context = get_user_context_for_explanations(user_id, db_session, self.movie_data)
                 # CF-only path: no RAG/LLM-grounded explanation.
                 skip_buckets = ["cf_similar_users", "limited_data"]
+                logger.info(
+                    "Explainability target (CF-only): user=%s rag_bucket_items=0 total_items=%d",
+                    user_id,
+                    len(explanation_items),
+                )
                 why_results = generate_why_recommendations_batch(
                     user_context,
                     explanation_items,
@@ -1049,6 +1065,8 @@ class MovieRecommendationModel:
                 for i, expl in enumerate(why_results):
                     if i < len(recs) and expl:
                         recs[i]["explanation"] = expl
+                explained = sum(1 for r in recs if r.get("explanation"))
+                logger.info("Explainability applied (CF-only): user=%s explained=%d/%d", user_id, explained, len(recs))
             except Exception as e:
                 logger.warning("Dynamic explanation batch (CF-only) failed: %s", e)
         return recs
