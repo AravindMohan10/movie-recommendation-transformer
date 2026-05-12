@@ -4,11 +4,31 @@ import { Link } from "react-router-dom";
 import CinematicBackdrop from "../Components/CinematicBackdrop";
 
 export default function LandingPage() {
-  const posterShowcase = [
-    "https://image.tmdb.org/t/p/w500/7zcylW4oBLAaShlnUNfrtRZy3Iu.jpg",
-    "https://image.tmdb.org/t/p/w500/csVZ2ZQCj98XdZoCuW1aixMYJ0W.jpg",
-    "https://image.tmdb.org/t/p/w500/uqx37cS8cpHg8U35f9U5IBlrCV3.jpg",
-    "https://image.tmdb.org/t/p/w500/yb6UB4WC3znlwU0L4AqMnjR9G9S.jpg",
+  const festivalBoard = [
+    {
+      title: "A Separation",
+      note: "Moral tension, intimate stakes, layered performances",
+      meta: "Drama • Iran • 2011",
+      tone: "from-[#17314a] to-[#0f1b2b]",
+    },
+    {
+      title: "Memories of Murder",
+      note: "Atmospheric dread with restrained, human investigation",
+      meta: "Thriller • Korea • 2003",
+      tone: "from-[#2f1f32] to-[#151019]",
+    },
+    {
+      title: "In the Mood for Love",
+      note: "Elegant longing, rhythm, and visual poetry",
+      meta: "Romance • Hong Kong • 2000",
+      tone: "from-[#3a2a1b] to-[#1c140d]",
+    },
+    {
+      title: "Portrait of a Lady on Fire",
+      note: "Silence, gaze, and emotional precision",
+      meta: "Drama • France • 2019",
+      tone: "from-[#2d3b2f] to-[#121a13]",
+    },
   ];
 
   const recommendationMoments = [
@@ -124,7 +144,7 @@ export default function LandingPage() {
             transition={{ delay: 0.2, duration: 0.8 }}
             className="mx-auto mb-12 max-w-3xl text-center text-lg text-zinc-200 sm:text-xl"
           >
-            CineAI learns how you watch and what you feel, then composes a queue that reflects your taste in tone, story, and atmosphere.
+            CineAI learns how you watch and what resonates, then composes a queue aligned to your tone, storytelling rhythm, and cinematic preferences.
           </motion.p>
 
           <motion.div
@@ -166,7 +186,7 @@ export default function LandingPage() {
             Designed for people who care about cinema
           </h2>
           <p className="mx-auto mb-10 max-w-3xl text-center text-zinc-300">
-            Not a toy recommendation feed. A cinematic assistant built to help you discover films with intent.
+            Built as a curation experience, not an endless feed, so every recommendation feels considered.
           </p>
           <div className="mx-auto grid w-full max-w-6xl gap-5 md:grid-cols-3">
             {principles.map((item) => (
@@ -192,28 +212,32 @@ export default function LandingPage() {
             className="mb-10 text-center text-3xl text-white sm:text-4xl"
             style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
           >
-            A frame from tonight&apos;s mood board
+            Tonight&apos;s curation board
           </h2>
-          <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-4 md:grid-cols-4">
-            {posterShowcase.map((src, idx) => (
+          <p className="mx-auto mb-8 max-w-3xl text-center text-zinc-300">
+            Instead of noisy poster spam, you get a clear board of cinematic directions with intent, mood, and narrative texture.
+          </p>
+          <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-4 md:grid-cols-2">
+            {festivalBoard.map((item, idx) => (
               <motion.div
-                key={src}
+                key={item.title}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.45, delay: idx * 0.06 }}
-                className="relative overflow-hidden rounded-xl border border-white/20 bg-black/35"
+                className={`relative overflow-hidden rounded-2xl border border-white/20 bg-gradient-to-br ${item.tone} p-6 shadow-2xl`}
+                style={{ transform: idx % 2 === 0 ? "rotate(-0.6deg)" : "rotate(0.6deg)" }}
               >
-                <img
-                  src={src}
-                  alt="Cinematic poster"
-                  className="h-full w-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.src =
-                      "https://via.placeholder.com/400x600/121212/f3f3f3?text=CineAI";
-                  }}
-                />
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
+                <p className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-300">Curator note</p>
+                <h3
+                  className="mb-3 text-2xl text-white"
+                  style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+                >
+                  {item.title}
+                </h3>
+                <p className="mb-4 text-sm leading-6 text-zinc-200">{item.note}</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-300">{item.meta}</p>
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
               </motion.div>
             ))}
           </div>
@@ -280,7 +304,7 @@ export default function LandingPage() {
             Your next great watch is already in your profile.
           </motion.h2>
           <p className="mb-8 max-w-2xl text-center text-zinc-300">
-            Start with a few films you love. CineAI will shape the rest into a recommendation experience that feels crafted, not automated.
+            Start with a few films you love. CineAI will shape the rest into a recommendation experience that feels crafted and personal.
           </p>
           <Link
             to="/get-started"
