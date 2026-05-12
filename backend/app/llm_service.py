@@ -368,8 +368,16 @@ Respond as JSON (and ONLY JSON) in this schema:
 Rules for "explanation":
 - Write 1-3 sentences.
 - Must connect 1-2 preference aspects from the user's taste profile to 1-2 concrete movie facts (genres/directors/overview excerpt/rag excerpt).
+- Include at least one concrete hook from the movie facts (story motif, setting, character dynamic, tone, director cue, or review excerpt detail).
 - If you cannot explain from the facts, set "explanation" to exactly "{_WHY_NONE_MARKER}" (uppercase), not any other text.
 - Keep it under 60 words.
+- Avoid templated openings like "This movie matches..." on every item.
+- Vary phrasing across items by rotating styles:
+  1) "Because you liked ..., you'll connect with ..."
+  2) "If ... works for you, this leans into ..."
+  3) "Your profile points to ..., and this delivers that via ..."
+  4) "You respond to ..., here that shows up in ..."
+- Do not repeat the same first 3 words across multiple explanations.
 
 You MUST return exactly {len(active_items)} JSON objects in the same order as the movies below.
 
