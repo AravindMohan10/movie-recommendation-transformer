@@ -372,12 +372,17 @@ Rules for "explanation":
 - If you cannot explain from the facts, set "explanation" to exactly "{_WHY_NONE_MARKER}" (uppercase), not any other text.
 - Keep it under 60 words.
 - Avoid templated openings like "This movie matches..." on every item.
+- Forbidden phrases: "matches the user's taste", "this movie matches", "based on your preference", "recommended because you like".
 - Vary phrasing across items by rotating styles:
   1) "Because you liked ..., you'll connect with ..."
   2) "If ... works for you, this leans into ..."
   3) "Your profile points to ..., and this delivers that via ..."
   4) "You respond to ..., here that shows up in ..."
 - Do not repeat the same first 3 words across multiple explanations.
+- For each explanation, include:
+  - one explicit user anchor (liked title, reviewed theme, or preference phrase), and
+  - one explicit movie anchor (plot/tone/director/detail from provided movie context).
+- Keep language natural and cinematic; avoid sounding like a rules engine.
 
 You MUST return exactly {len(active_items)} JSON objects in the same order as the movies below.
 
@@ -390,7 +395,7 @@ Movies (in order):
             model=model_name,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=min(1200, 120 * len(active_items)),
-            temperature=0.2,
+            temperature=0.45,
         )
         raw = (resp.choices[0].message.content or "").strip()
         out = _parse_json_why_array(raw, expected_len=len(active_items))
