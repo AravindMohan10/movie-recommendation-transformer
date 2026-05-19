@@ -17,6 +17,7 @@ const HolographicGallery = ({ movies, onLike, onDislike, onFavorite, onReview, u
   // LOCAL STATE to track interactions - this will update immediately
   const [localInteractions, setLocalInteractions] = useState({});
   const [forceUpdate, setForceUpdate] = useState(0);
+  const [detailMovie, setDetailMovie] = useState(null);
   
   // Sync prop changes to local state
   useEffect(() => {
@@ -230,10 +231,21 @@ const HolographicGallery = ({ movies, onLike, onDislike, onFavorite, onReview, u
                 <p className="ai-reason">{movie.overview || movie.matchReason || ""}</p>
                 {(movie.matchReason || movie.ai_reason) ? (
                   <p className="text-xs text-teal-400/90 mt-1.5" title={movie.matchReason || movie.ai_reason}>
-                    <span className="font-medium text-teal-300">Why this recommendation?</span> {((movie.matchReason || movie.ai_reason) || "").slice(0, 120)}
+                    {((movie.matchReason || movie.ai_reason) || "").slice(0, 120)}
                     {((movie.matchReason || movie.ai_reason) || "").length > 120 ? "…" : ""}
                   </p>
                 ) : null}
+                <button
+                  type="button"
+                  className="details-link"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDetailMovie(movie);
+                  }}
+                >
+                  Read full description
+                </button>
               </div>
 
               {/* Interactive Buttons - Always visible for debugging */}
@@ -433,6 +445,49 @@ const HolographicGallery = ({ movies, onLike, onDislike, onFavorite, onReview, u
               aria-label={`Go to slide ${i + 1} of ${numSlides}`}
             />
           ))}
+        </div>
+      )}
+
+      {detailMovie && (
+        <div
+          className="details-modal-backdrop"
+          onClick={() => setDetailMovie(null)}
+          role="presentation"
+        >
+          <div
+            className="details-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Movie details"
+          >
+            <div className="details-modal-header">
+              <h3>{detailMovie.title}</h3>
+              <button
+                type="button"
+                className="details-modal-close"
+                onClick={() => setDetailMovie(null)}
+                aria-label="Close movie details"
+              >
+                ×
+              </button>
+            </div>
+            <div className="details-modal-meta">
+              <span>{detailMovie.release_year || detailMovie.year || "—"}</span>
+              <span>{detailMovie.genres ? detailMovie.genres.join(", ") : detailMovie.genre || "Unknown"}</span>
+              <span>★ {detailMovie.rating || detailMovie.vote_average || "—"}</span>
+            </div>
+            <div className="details-modal-body">
+              <p className="details-modal-label">Synopsis</p>
+              <p className="details-modal-text">
+                {detailMovie.overview || "No description available."}
+              </p>
+              <p className="details-modal-label">Why this recommendation</p>
+              <p className="details-modal-text">
+                {detailMovie.matchReason || detailMovie.ai_reason || "No explanation available yet."}
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>

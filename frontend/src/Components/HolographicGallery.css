@@ -178,6 +178,7 @@
 
 .movie-title.line-clamp-2 {
   display: -webkit-box;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -218,6 +219,98 @@
   line-height: 1.4;
   margin: 0;
   opacity: 0.8;
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.details-link {
+  margin-top: 0.35rem;
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: #9ad8ff;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.details-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(4px);
+  z-index: 220;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.details-modal {
+  width: min(760px, 96vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(1, 255, 233, 0.25);
+  background: linear-gradient(170deg, rgba(15, 19, 26, 0.98), rgba(8, 10, 14, 0.98));
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5);
+  padding: 1rem 1.1rem 1.2rem;
+}
+
+.details-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.details-modal-header h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.details-modal-close {
+  border: none;
+  background: transparent;
+  color: #c7d2fe;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.details-modal-meta {
+  margin-top: 0.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  font-size: 0.82rem;
+  color: #9ca3af;
+}
+
+.details-modal-body {
+  margin-top: 1rem;
+}
+
+.details-modal-label {
+  margin: 0.8rem 0 0.25rem;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #5eead4;
+}
+
+.details-modal-text {
+  margin: 0;
+  color: #e5e7eb;
+  line-height: 1.6;
+  font-size: 0.95rem;
 }
 
 /* Interactive Buttons */
