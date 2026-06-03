@@ -1,10 +1,10 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import CinematicBackdrop from "../Components/CinematicBackdrop";
 
 export default function LandingPage() {
-  const festivalBoard = [
+  const festivalBoardPool = [
     {
       title: "A Separation",
       note: "Moral tension, intimate stakes, layered performances",
@@ -29,7 +29,43 @@ export default function LandingPage() {
       meta: "Drama • France • 2019",
       tone: "from-[#2d3b2f] to-[#121a13]",
     },
+    {
+      title: "Decision to Leave",
+      note: "Obsessive longing and procedural tension in equal measure",
+      meta: "Mystery • Korea • 2022",
+      tone: "from-[#132f3d] to-[#0b1c24]",
+    },
+    {
+      title: "The Handmaiden",
+      note: "Elegant deception, lush visual craft, and sharp reversals",
+      meta: "Thriller • Korea • 2016",
+      tone: "from-[#3a2130] to-[#1a0f16]",
+    },
+    {
+      title: "Past Lives",
+      note: "Tender emotional restraint with lingering romantic ache",
+      meta: "Romance • USA • 2023",
+      tone: "from-[#3e3327] to-[#1e1710]",
+    },
+    {
+      title: "Incendies",
+      note: "Slow-burn revelation with devastating thematic payoff",
+      meta: "Drama • Canada • 2010",
+      tone: "from-[#2a2f3f] to-[#121520]",
+    },
   ];
+
+  const festivalBoard = useMemo(() => {
+    // Rotate board every 24h (UTC day) for a daily fresh look.
+    const dayKey = Math.floor(Date.now() / 86400000);
+    const out = [];
+    const n = festivalBoardPool.length;
+    for (let i = 0; i < Math.min(4, n); i++) {
+      const idx = (dayKey * 3 + i * 2) % n;
+      out.push(festivalBoardPool[idx]);
+    }
+    return out;
+  }, []);
 
   const recommendationMoments = [
     {
@@ -212,7 +248,7 @@ export default function LandingPage() {
             className="mb-10 text-center text-3xl text-white sm:text-4xl"
             style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
           >
-            Tonight&apos;s curation board
+            Today&apos;s curation board
           </h2>
           <p className="mx-auto mb-8 max-w-3xl text-center text-zinc-300">
             Instead of noisy poster spam, you get a clear board of cinematic directions with intent, mood, and narrative texture.
