@@ -7,6 +7,7 @@ from ..database import SessionLocal
 from ..auth import verify_password, create_access_token, get_current_user, hash_password
 from ..models import User, PasswordResetToken
 from ..limiter import limiter
+from ..rate_limits import LOGIN, SIGNUP
 from datetime import datetime, timezone, timedelta
 import secrets
 import logging
@@ -28,7 +29,7 @@ def get_db():
         db.close()
 
 @router.post("/signup", response_model=UserOut)
-@limiter.exempt
+@limiter.limit(SIGNUP)
 async def signup(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     try:
         # Password validation happens in UserCreate schema (raises ValueError if >72 bytes)
@@ -50,7 +51,7 @@ async def signup(request: Request, user: UserCreate, db: Session = Depends(get_d
         raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
 
 @router.post("/login")
-@limiter.exempt
+@limiter.limit(LOGIN)
 def login(
     request: Request,
     response: Response,

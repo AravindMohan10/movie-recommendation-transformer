@@ -7,6 +7,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .limiter import limiter, LIMITER_AVAILABLE
+from .origin_guard import origin_guard_middleware
+from .rate_limits import HEALTH
 from .routes import users
 from .routes import recommendations
 from .routes import movies
@@ -50,6 +52,12 @@ app.add_middleware(
 async def options_handler(request: Request):
     """Handle OPTIONS preflight requests explicitly."""
     return {"message": "OK"}
+
+
+# Reject scripted/cron traffic hitting Fly directly without browser Origin
+@app.middleware("http")
+async def enforce_browser_origin(request: Request, call_next):
+    return await origin_guard_middleware(request, call_next)
 
 
 # Request ID middleware (for tracing in production)
@@ -149,14 +157,14 @@ async def root():
     return {"message": "Welcome to CineAI API", "version": "1.0.0"}
 
 @app.get("/health")
-@limiter.exempt
-async def health_check():
+@limiter.limit(HEALTH)
+async def health_check(request: Request):
     """Lightweight liveness check (no DB/model)."""
     return {"status": "healthy", "service": "CineAI API"}
 
 @app.get("/ready")
-@limiter.exempt
-async def ready_check():
+@limiter.limit("30/hour")
+async def ready_check(request: Request):
     """Readiness: DB connectivity. For k8s/load balancer."""
     from .database import SessionLocal
     from sqlalchemy import text

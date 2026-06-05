@@ -161,7 +161,7 @@ export default function Dashboard() {
     }
     let cancelled = false;
     setLoadingGenre(true);
-    getMoviesByGenre(selectedGenre, 80)
+    getMoviesByGenre(selectedGenre, 40)
       .then((data) => {
         if (cancelled) return;
         const list = (data.movies || []).map((m) => ({

@@ -1,4 +1,13 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
+from ..limiter import limiter
+from ..rate_limits import (
+    MOVIES_RANDOM,
+    MOVIES_BY_GENRE,
+    MOVIES_SEARCH,
+    MOVIES_JOURNEY,
+    MOVIES_DETAIL,
+    MOVIES_GENRES,
+)
 from typing import List, Dict, Optional
 import json
 import logging
@@ -161,7 +170,9 @@ def _get_tmdb_movie(movie_id: int) -> Optional[Dict]:
 
 
 @router.get("/search")
+@limiter.limit(MOVIES_SEARCH)
 async def search_movies(
+    request: Request,
     query: str = Query(..., min_length=2, description="Search query for movie title")
 ) -> Dict:
     """
@@ -319,7 +330,8 @@ def _is_indian_movie(m: dict) -> bool:
 
 
 @router.get("/genres")
-async def get_genres() -> Dict:
+@limiter.limit(MOVIES_GENRES)
+async def get_genres(request: Request) -> Dict:
     """Return list of all genre names (for browse-by-genre). Includes Classics (Pre-1980), Indian."""
     return {"genres": list(_TMDB_GENRES.values()) + [CLASSICS_GENRE, INDIAN_GENRE]}
 
@@ -342,9 +354,11 @@ def _weighted_score(vote_average: float, vote_count: int) -> float:
 
 
 @router.get("/by-genre")
+@limiter.limit(MOVIES_BY_GENRE)
 async def get_movies_by_genre(
+    request: Request,
     genre: str = Query(..., min_length=1, description="Genre name e.g. Action, Drama, or Classics (Pre-1980)"),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(40, ge=1, le=80),
 ) -> Dict:
     """Return movies from the full catalog in this genre. Classics (Pre-1980) = release year < 1980. Quality filters: min votes, min rating, exclude docs (unless Documentary), weighted sort."""
     movies = load_movie_data()
@@ -412,7 +426,9 @@ async def get_movies_by_genre(
 
 
 @router.get("/journey")
+@limiter.limit(MOVIES_JOURNEY)
 async def get_movie_journey(
+    request: Request,
     seed: int = Query(..., description="Starting movie ID (TMDB)"),
     limit: int = Query(5, ge=3, le=5),
 ) -> Dict:
@@ -448,7 +464,8 @@ async def get_movie_journey(
 
 
 @router.get("/random")
-async def get_random_movies(limit: int = Query(10, ge=1, le=30)) -> Dict:
+@limiter.limit(MOVIES_RANDOM)
+async def get_random_movies(request: Request, limit: int = Query(10, ge=1, le=20)) -> Dict:
     """Public. Truly random good movies (no documentaries). For landing page."""
     movies = load_movie_data()
     pool = []
@@ -476,7 +493,8 @@ async def get_random_movies(limit: int = Query(10, ge=1, le=30)) -> Dict:
 
 
 @router.get("/{movie_id}")
-async def get_movie_by_id(movie_id: int) -> Dict:
+@limiter.limit(MOVIES_DETAIL)
+async def get_movie_by_id(request: Request, movie_id: int) -> Dict:
     """Public: get a single movie by id (for share page). Tries local catalog, then TMDB if not found."""
     movies = load_movie_data()
     for m in movies:

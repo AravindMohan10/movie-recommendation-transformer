@@ -25,9 +25,11 @@ const API_ORIGIN = API_BASE.replace(/\/api\/?$/, "") || (typeof window !== "unde
 
 /** Retry fetch on 502/503/network failure (cold start). Max 3 attempts, exponential backoff. */
 async function fetchWithRetry(url, opts = {}, retries = 3) {
+  const headers = { "X-CineAI-Client": "1", ...(opts.headers || {}) };
+  const merged = { ...opts, headers };
   for (let i = 0; i < retries; i++) {
     try {
-      const res = await fetch(url, opts);
+      const res = await fetch(url, merged);
       if ((res.status === 502 || res.status === 503) && i < retries - 1) {
         await new Promise((r) => setTimeout(r, Math.pow(2, i) * 1000));
         continue;
@@ -48,9 +50,23 @@ async function fetchWithRetry(url, opts = {}, retries = 3) {
  * Wake up the backend (e.g. Fly.io cold start). Call when user lands on login page
  * so the server is warming up while they type. Fire-and-forget.
  */
+const WAKE_BACKEND_KEY = "cineai_wake_backend_at";
+
+/** Wake Fly once per tab session (avoids health-check storms from every auth page visit). */
 export function wakeBackend() {
+  try {
+    const last = Number(sessionStorage.getItem(WAKE_BACKEND_KEY) || 0);
+    if (Date.now() - last < 15 * 60 * 1000) return;
+    sessionStorage.setItem(WAKE_BACKEND_KEY, String(Date.now()));
+  } catch {
+    /* sessionStorage unavailable */
+  }
   const url = API_ORIGIN ? `${API_ORIGIN}/health` : "/health";
-  fetch(url, { method: "GET", credentials: "include" }).catch(() => {});
+  fetch(url, {
+    method: "GET",
+    credentials: "include",
+    headers: { "X-CineAI-Client": "1" },
+  }).catch(() => {});
 }
 
 // Helper function to handle API responses
@@ -355,16 +371,12 @@ export async function getSurpriseMe(limit = 5) {
  * Prefetch key dashboard data right after login to make the first load seamless.
  * Fires requests in parallel and never throws (best-effort warm cache).
  */
+/** Light warm-up after login — one rec fetch only (heavy endpoints load on dashboard). */
 export async function prefetchDashboardData() {
   try {
-    await Promise.allSettled([
-      getRecommendations(12),
-      getHiddenGems(15),
-      getSurpriseMe(10),
-      getOnboardingStatus(),
-    ]);
+    await getRecommendations(10);
   } catch {
-    // Intentionally swallow errors; this is a non-blocking warm-up.
+    /* non-blocking */
   }
 }
 

@@ -37,8 +37,6 @@ export function AuthProvider({ children }) {
       const userData = await apiGetMe();
       setUser(userData);
       setIsAuthenticated(true);
-      // Warm up key data so dashboard loads instantly
-      prefetchDashboardData();
     } catch (error) {
       console.log('Authentication check failed:', error.message);
       setUser(null);

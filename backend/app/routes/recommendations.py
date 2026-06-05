@@ -5,6 +5,7 @@ from typing import List, Dict, Optional
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.exc import IntegrityError, OperationalError
 import json
+import os
 import sys
 import random
 from pathlib import Path
@@ -17,7 +18,8 @@ from ..database import get_db
 from ..models import User, OnboardingStatus, RecommendationSnapshot
 from ..auth import get_current_user
 from ..onboarding_service import onboarding_service
-from ..limiter import limiter
+from ..limiter import limiter, rate_limit_user_or_ip
+from ..rate_limits import RECOMMENDATIONS, HIDDEN_GEMS, SURPRISE_ME, MOOD, INTERACTIONS
 
 # Initialize logger first (always needed)
 import logging
@@ -213,7 +215,7 @@ def _upsert_onboarding_status(
 
 @router.get("", response_model=None)
 @router.get("/", response_model=None)
-@limiter.limit("60/minute")
+@limiter.limit(RECOMMENDATIONS, key_func=rate_limit_user_or_ip)
 async def get_recommendations(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -554,7 +556,7 @@ async def get_recommendations(
             )
 
 @router.post("/interact")
-@limiter.limit("120/minute")
+@limiter.limit(INTERACTIONS, key_func=rate_limit_user_or_ip)
 async def record_interaction(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -997,7 +999,7 @@ def _is_adult(movie_data: dict) -> bool:
 
 
 @router.get("/surprise-me")
-@limiter.limit("30/minute")
+@limiter.limit(SURPRISE_ME, key_func=rate_limit_user_or_ip)
 async def get_surprise_me(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -1065,7 +1067,7 @@ async def get_surprise_me(
         )
 
 @router.get("/mood")
-@limiter.limit("30/minute")
+@limiter.limit(MOOD, key_func=rate_limit_user_or_ip)
 async def get_mood_recommendations(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -1133,7 +1135,7 @@ async def get_mood_recommendations(
 
 
 @router.get("/hidden-gems")
-@limiter.limit("30/minute")
+@limiter.limit(HIDDEN_GEMS, key_func=rate_limit_user_or_ip)
 async def get_hidden_gems(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -1142,6 +1144,10 @@ async def get_hidden_gems(
     db: Session = Depends(get_db),
 ):
     """Hidden gems: high quality, low popularity, configurable filters. Serendipity score = relevance * vote_quality * (1 - norm_popularity)."""
+    env = os.getenv("ENV", "production").lower()
+    if env == "production" and force_refresh:
+        logger.info("Ignoring force_refresh for hidden-gems user=%s", current_user.user_id)
+        force_refresh = False
     from ..hidden_gems_config import (
         passes_hidden_gems_filters,
         serendipity_score,
