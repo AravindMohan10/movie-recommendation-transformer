@@ -22,10 +22,13 @@ Movie recommendation app that learns from your likes, ratings, and reviews.
 **Prerequisites:** Python 3.8+, Node 16+, 8GB+ RAM for the model.
 
 ```bash
-# Backend
+# Backend (from project root)
 cd backend
 pip install -r requirements.txt   # or use a venv
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Or use the helper script:
+# ./scripts/start_backend.sh
 
 # Frontend (other terminal)
 cd frontend
@@ -50,7 +53,17 @@ Step-by-step instructions are in [DEPLOY.md](DEPLOY.md): frontend on Vercel, bac
 - `Checkpoints/` – Trained model weights (train separately or add your own)
 - `data_engine/` – TMDB extraction and ETL (see `data_engine/README.md`)
 - `scripts/` – Setup and start scripts
-- `tests/` – Login and model-loading checks, mood service unit tests
+- `tests/` – Pytest unit tests (see `tests/README.md`)
+
+## Tests
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+pytest                              # fast unit tests
+pytest --cov=backend/app            # with coverage
+pytest -m slow                      # loads ML checkpoints (optional)
+```
 
 ## License
 

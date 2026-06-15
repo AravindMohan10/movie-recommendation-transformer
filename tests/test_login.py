@@ -1,27 +1,23 @@
-#!/usr/bin/env python3
-"""Quick test for login endpoint. Run with backend up: python tests/test_login.py"""
+"""Quick integration check for login endpoint (backend must be running)."""
+from __future__ import annotations
+
+import os
+
+import pytest
 import requests
-import sys
 
-def main():
-    try:
-        response = requests.post(
-            "http://localhost:8000/api/login",
-            data={"username": "testuser", "password": "testpass123"},
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=5,
-        )
-        print("Status:", response.status_code)
-        if response.status_code == 200:
-            print("Login OK")
-        else:
-            print("Response:", response.json())
-    except requests.exceptions.ConnectionError:
-        print("Backend not running. Start: cd backend && uvicorn app.main:app --reload")
-        sys.exit(1)
-    except Exception as e:
-        print("Error:", e)
-        sys.exit(1)
+pytestmark = pytest.mark.integration
 
-if __name__ == "__main__":
-    main()
+
+@pytest.mark.skipif(
+    os.getenv("RUN_INTEGRATION_TESTS", "").lower() not in ("1", "true", "yes"),
+    reason="Set RUN_INTEGRATION_TESTS=1 with backend on localhost:8000",
+)
+def test_login_endpoint_live():
+    response = requests.post(
+        "http://localhost:8000/api/login",
+        data={"username": "testuser", "password": "testpass123"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        timeout=5,
+    )
+    assert response.status_code in (200, 401)

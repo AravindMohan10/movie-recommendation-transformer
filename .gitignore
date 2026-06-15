@@ -194,8 +194,16 @@ frontend/.env
 frontend/.env.local
 frontend/.env.production.local
 
-# Generated outputs (optional; remove to track evaluation results)
-# monitoring_report.json
-# evaluation_*.json
-# cf_only.json
-# my_results.json
+# Fly CLI local state (never commit)
+.fly-home/
+.flyctl-config/
+
+# Generated evaluation / run outputs (regenerate locally)
+monitoring_report.json
+evaluation_*.json
+cf_only.json
+my_results.json
+enriched_recommendations.csv
+
+# Local virtualenv
+.venv/
