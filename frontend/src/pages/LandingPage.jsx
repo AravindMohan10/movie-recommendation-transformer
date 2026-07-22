@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Film, ListChecks, MessageSquare, Shuffle, Sparkles } from "lucide-react";
 import CinematicBackdrop from "../Components/CinematicBackdrop";
 import LandingPreview from "../Components/LandingPreview";
-import { getRandomMovies, wakeBackend } from "../Utils/api";
+import { SHOWCASE_POSTERS } from "../data/landingShowcase";
+import { wakeBackend } from "../Utils/api";
 import "./LandingPage.css";
 
 const features = [
@@ -47,27 +48,9 @@ const steps = [
   },
 ];
 
-const FALLBACK_POSTERS = [
-  { id: 1, title: "Inception", poster_url: "https://image.tmdb.org/t/p/w342/8UlWHLMpgZm9bx6QYh0NFoq67TZ.jpg" },
-  { id: 2, title: "Interstellar", poster_url: "https://image.tmdb.org/t/p/w342/6ELJEzQJ3Y45HczvreC3dg0GV5R.jpg" },
-  { id: 3, title: "The Dark Knight", poster_url: "https://image.tmdb.org/t/p/w342/2CAL2433ZeIihfX1Hb2139CX0pW.jpg" },
-  { id: 4, title: "The Matrix", poster_url: "https://image.tmdb.org/t/p/w342/6KErczPBROQty7QoIsaa6wJYXZi.jpg" },
-  { id: 5, title: "Pulp Fiction", poster_url: "https://image.tmdb.org/t/p/w342/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg" },
-  { id: 6, title: "Parasite", poster_url: "https://image.tmdb.org/t/p/w342/7IiTTgloJzvGI1WAMzqwXlbVJ1H.jpg" },
-  { id: 7, title: "Blade Runner 2049", poster_url: "https://image.tmdb.org/t/p/w342/gajvaN1LiSV1KNwwZoGirIK3zQ0.jpg" },
-  { id: 8, title: "Arrival", poster_url: "https://image.tmdb.org/t/p/w342/x2FJ7tcl6DVMsisWHmpIHZMpYM8.jpg" },
-];
-
 export default function LandingPage() {
-  const [posters, setPosters] = useState(FALLBACK_POSTERS);
-
   useEffect(() => {
     wakeBackend();
-    getRandomMovies(8)
-      .then((data) => {
-        if (data?.movies?.length) setPosters(data.movies);
-      })
-      .catch(() => {});
   }, []);
 
   return (
@@ -159,7 +142,7 @@ export default function LandingPage() {
             </div>
 
             <div className="mx-auto w-full max-w-md lg:max-w-none">
-              <LandingPreview movies={posters} />
+              <LandingPreview />
             </div>
           </div>
         </section>
@@ -171,11 +154,11 @@ export default function LandingPage() {
                 <p className="text-[11px] uppercase tracking-[0.18em] text-teal-400/75">From the catalog</p>
                 <h2 className="mt-1 text-lg font-light text-white sm:text-xl">Films in rotation tonight</h2>
               </div>
-              <p className="hidden text-xs text-gray-500 sm:block">Pulled live from the library</p>
+              <p className="hidden text-xs text-gray-500 sm:block">Sample titles from the catalog</p>
             </div>
             <div className="landing-fade-edges">
               <div className="landing-poster-row">
-                {posters.map((movie) => (
+                {SHOWCASE_POSTERS.map((movie) => (
                   <figure key={movie.id || movie.title} className="landing-poster">
                     <img src={movie.poster_url} alt={movie.title} loading="lazy" />
                   </figure>

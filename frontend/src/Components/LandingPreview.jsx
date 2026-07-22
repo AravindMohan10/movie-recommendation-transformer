@@ -1,26 +1,9 @@
-import React from "react";
+import React, { useMemo } from "react";
+import { getShowcaseQueueForToday } from "../data/landingShowcase";
 
-const FALLBACK = [
-  {
-    id: 1,
-    title: "Inception",
-    poster_url: "https://image.tmdb.org/t/p/w342/8UlWHLMpgZm9bx6QYh0NFoq67TZ.jpg",
-  },
-  {
-    id: 2,
-    title: "Interstellar",
-    poster_url: "https://image.tmdb.org/t/p/w342/6ELJEzQJ3Y45HczvreC3dg0GV5R.jpg",
-  },
-  {
-    id: 3,
-    title: "The Dark Knight",
-    poster_url: "https://image.tmdb.org/t/p/w342/2CAL2433ZeIihfX1Hb2139CX0pW.jpg",
-  },
-];
-
-export default function LandingPreview({ movies = [] }) {
-  const list = movies.length >= 3 ? movies.slice(0, 3) : FALLBACK;
-  const featured = list[0];
+export default function LandingPreview() {
+  const queue = useMemo(() => getShowcaseQueueForToday(), []);
+  const featured = queue.movies[0];
 
   return (
     <div className="landing-preview rounded-2xl p-5 sm:p-6">
@@ -30,14 +13,14 @@ export default function LandingPreview({ movies = [] }) {
           <p className="text-sm text-gray-300">Ranked for tonight</p>
         </div>
         <span className="rounded-full border border-teal-500/30 bg-teal-500/10 px-3 py-1 text-xs text-teal-200">
-          High confidence
+          {queue.confidence}
         </span>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        {list.map((movie, index) => (
+        {queue.movies.map((movie, index) => (
           <div
-            key={movie.id || movie.title}
+            key={movie.id}
             className={`landing-preview-card overflow-hidden rounded-xl ${index === 0 ? "is-featured" : ""}`}
           >
             <div className="aspect-[2/3] bg-zinc-900">
@@ -60,10 +43,7 @@ export default function LandingPreview({ movies = [] }) {
 
       <div className="mt-5 rounded-xl border border-teal-700/30 bg-black/50 px-4 py-3">
         <p className="mb-1 text-[10px] uppercase tracking-[0.16em] text-teal-400/75">Why this pick</p>
-        <p className="text-sm leading-relaxed text-gray-300">
-          You tend to save slow-burn thrillers with moral tension.{" "}
-          <span className="text-white">{featured?.title}</span> sits in that lane — same restraint, higher stakes.
-        </p>
+        <p className="text-sm leading-relaxed text-gray-300">{featured.reason}</p>
       </div>
     </div>
   );
