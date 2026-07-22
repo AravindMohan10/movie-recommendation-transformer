@@ -857,7 +857,7 @@ export default function Dashboard() {
       <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="text-center">
           <div className="w-12 h-12 border-2 border-teal-400 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-          <div className="text-lg text-teal-200 font-light">Initializing your experience...</div>
+          <div className="text-lg text-teal-200 font-light">Loading...</div>
         </div>
       </div>
     );
@@ -869,12 +869,12 @@ export default function Dashboard() {
         <div className="text-5xl font-extrabold mb-8 bg-gradient-to-r from-teal-300 via-yellow-100 to-blue-200 bg-clip-text text-transparent tracking-tight">
           cine.<span className="text-white">ai</span>
         </div>
-        <div className="text-xl text-gray-400 mb-8 font-light">Your premium movie companion</div>
+        <div className="text-xl text-gray-400 mb-8 font-light">Sign in to see your recommendations</div>
         <a
           href="/auth"
-          className="px-12 py-4 bg-gradient-to-r from-teal-400 via-yellow-300 to-blue-400 text-white rounded-full font-bold tracking-wide hover:scale-105 transition-all duration-300 shadow-2xl"
+          className="px-12 py-4 bg-gradient-to-r from-teal-400 via-yellow-300 to-blue-400 text-black rounded-full font-semibold tracking-wide hover:scale-105 transition-all duration-300 shadow-2xl"
         >
-          Begin Experience
+          Sign in
         </a>
       </div>
     );
@@ -1033,7 +1033,7 @@ export default function Dashboard() {
                 );
               })}
             </div>
-          </div>
+      </div>
 
           {/* Section title: Recommendations vs "All [Genre] movies" */}
           <h3 className="text-xl font-light text-teal-200/90 mb-4 tracking-wide">
@@ -1190,8 +1190,8 @@ export default function Dashboard() {
                   No deep cuts available in this lane yet. Try another mode or shuffle.
                 </div>
               )}
-            </div>
-          </section>
+          </div>
+        </section>
         )}
       </main>
 
