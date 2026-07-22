@@ -1,9 +1,9 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Film, ListChecks, MessageSquare, Shuffle, Sparkles } from "lucide-react";
 import CinematicBackdrop from "../Components/CinematicBackdrop";
 import LandingPreview from "../Components/LandingPreview";
-import { SHOWCASE_POSTERS } from "../data/landingShowcase";
+import { getShowcaseBrowseForToday } from "../data/landingShowcase";
 import { wakeBackend } from "../Utils/api";
 import "./LandingPage.css";
 
@@ -49,6 +49,8 @@ const steps = [
 ];
 
 export default function LandingPage() {
+  const browsePosters = useMemo(() => getShowcaseBrowseForToday(), []);
+
   useEffect(() => {
     wakeBackend();
   }, []);
@@ -152,13 +154,13 @@ export default function LandingPage() {
             <div className="mb-5 flex items-end justify-between gap-4">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.18em] text-teal-400/75">From the catalog</p>
-                <h2 className="mt-1 text-lg font-light text-white sm:text-xl">Films in rotation tonight</h2>
+                <h2 className="mt-1 text-lg font-light text-white sm:text-xl">Today&apos;s lineup</h2>
               </div>
-              <p className="hidden text-xs text-gray-500 sm:block">Sample titles from the catalog</p>
+              <p className="hidden text-xs text-gray-500 sm:block">Rotates daily · 6 curated sets</p>
             </div>
             <div className="landing-fade-edges">
               <div className="landing-poster-row">
-                {SHOWCASE_POSTERS.map((movie) => (
+                {browsePosters.map((movie) => (
                   <figure key={movie.id || movie.title} className="landing-poster">
                     <img src={movie.poster_url} alt={movie.title} loading="lazy" />
                   </figure>
