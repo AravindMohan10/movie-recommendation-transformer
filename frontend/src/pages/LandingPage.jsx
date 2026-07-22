@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Film, ListChecks, MessageSquare, Shuffle, Sparkles } from "lucide-react";
 import CinematicBackdrop from "../Components/CinematicBackdrop";
 import LandingPreview from "../Components/LandingPreview";
-import { getShowcaseBrowseForToday } from "../data/landingShowcase";
+import { getShowcaseBrowseForToday, getShowcaseQueueForToday } from "../data/landingShowcase";
 import { wakeBackend } from "../Utils/api";
 import "./LandingPage.css";
 
@@ -49,6 +49,7 @@ const steps = [
 ];
 
 export default function LandingPage() {
+  const showcase = useMemo(() => getShowcaseQueueForToday(), []);
   const browsePosters = useMemo(() => getShowcaseBrowseForToday(), []);
 
   useEffect(() => {
@@ -149,23 +150,29 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="border-y border-teal-800/25 bg-black/40 py-10">
+        <section className="border-y border-teal-800/25 bg-black/40 py-16 lg:py-20">
           <div className="mx-auto max-w-7xl px-6 lg:px-10">
-            <div className="mb-5 flex items-end justify-between gap-4">
+            <div className="mb-10 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.18em] text-teal-400/75">From the catalog</p>
-                <h2 className="mt-1 text-lg font-light text-white sm:text-xl">Today&apos;s lineup</h2>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-teal-400/75">Today&apos;s board</p>
+                <h2 className="mt-1 text-xl font-light text-white sm:text-2xl">{showcase.theme}</h2>
               </div>
-              <p className="hidden text-xs text-gray-500 sm:block">Rotates daily · 6 curated sets</p>
+              <p className="text-xs text-gray-500">Rotates daily · 6 curated sets</p>
             </div>
-            <div className="landing-fade-edges">
-              <div className="landing-poster-row">
-                {browsePosters.map((movie) => (
-                  <figure key={movie.id || movie.title} className="landing-poster">
+            <div className="landing-browse-grid">
+              {browsePosters.map((movie) => (
+                <article key={movie.id || movie.title} className="landing-browse-item">
+                  <div className="landing-browse-poster">
                     <img src={movie.poster_url} alt={movie.title} loading="lazy" />
-                  </figure>
-                ))}
-              </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium leading-snug text-white">{movie.title}</p>
+                    {movie.meta && (
+                      <p className="landing-browse-meta mt-1">{movie.meta}</p>
+                    )}
+                  </div>
+                </article>
+              ))}
             </div>
           </div>
         </section>
